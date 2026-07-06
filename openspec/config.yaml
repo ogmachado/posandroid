@@ -1,0 +1,72 @@
+# openspec/config.yaml
+schema: spec-driven
+
+context: |
+  Greenfield Android (Kotlin) POS app. Single device, single fixed cashier,
+  offline/no-backend, local DB only (Room candidate, undecided). No printing
+  in v1. Camera barcode scan (MLKit/ZXing, undecided). Needs alt-currency
+  display conversion below total (display-only, no persisted rate).
+  Reference-only (no code/build dep): Spring Boot backend at
+  D:\Proyectos\idos-pos — see openspec/project.md for full detail.
+
+strict_tdd: true # scoped — see strict_tdd_scope below; NOT app-wide (design.md Testing Strategy: partial adoption)
+
+strict_tdd_scope:
+  rationale: >
+    Per design.md Testing Strategy / "Strict TDD Mode recommendation": RED/GREEN
+    first for the domain/repository layer (Robolectric + in-memory Room) — pure,
+    deterministic, high-value (atomic order-create, expectedBalance formula,
+    uniqueness guards, PIN verify, currency math). Compose UI and CameraX/MLKit
+    scanning are exploratory/device-bound and poorly served by strict red-green-
+    refactor; those are covered by tests written alongside implementation, not
+    test-first.
+  include:
+    - "**/*Repository.kt"
+    - "**/*Dao.kt"
+    - "core/db/**"
+    - "core/domain/**"
+  exclude:
+    - "**/*ViewModel.kt" # UI-adjacent state holder; covered by tests written alongside
+    - "**/*Screen.kt" # Compose UI — createComposeRule tests written alongside
+    - "scan/**" # CameraX/MLKit — instrumented, device-bound, exploratory
+    - "core/di/**" # wiring/composition root, not business logic
+
+testing:
+  status: detected
+  reason: >
+    Gradle/Android project skeleton established in this apply batch
+    (android-pos-mvp PR1 — Phase 0). Build system: Gradle 8.6 (Kotlin DSL),
+    AGP 8.4.2, Kotlin 1.9.24, KSP 1.9.24-1.0.20. Test deps declared in
+    app/build.gradle.kts: JUnit4, Robolectric, AndroidX Test, coroutines-test,
+    Turbine, Room testing, Espresso. No test source files exist yet — they land
+    per-capability starting Phase 1/2 (RED items in tasks.md).
+  expected_candidates: [gradle, junit4, robolectric, androidx-test, turbine, espresso]
+  redetect_at: n/a # confirmed by this apply batch; re-detect only if the build system changes
+
+rules:
+  proposal:
+    - Confirm undecided items in openspec/project.md (persistence lib, barcode lib, UI toolkit) before locking scope
+    - Include rollback plan for risky changes
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Explicitly decide and document: local persistence library, barcode scanning library, UI toolkit (Compose vs. Views)
+    - Document how backend reference concepts (inventory movements, void-with-reason, cash-session expectedBalance, alt-currency display) are adapted to a single-device offline model
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    notes:
+      - Follow patterns established by the earliest accepted design once the Android project skeleton exists
+      - "TDD scope: see top-level strict_tdd_scope — strict RED/GREEN only within its include patterns"
+    tdd: true
+    test_command: "./gradlew testDebugUnitTest"
+  verify:
+    test_command: "./gradlew testDebugUnitTest"
+    build_command: "./gradlew assembleDebug"
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas

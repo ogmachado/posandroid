@@ -1,0 +1,16 @@
+*.iml
+.gradle/
+.idea/
+.DS_Store
+build/
+/captures
+.externalNativeBuild/
+.cxx/
+local.properties
+
+# Gradle wrapper distribution cache (never commit the downloaded distro itself)
+gradle-wrapper.jar.sha256
+
+# Keystores — never commit signing material
+*.jks
+*.keystore

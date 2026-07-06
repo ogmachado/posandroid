@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Minimal placeholder theme — Compose (Material3) owns actual theming via
+         core/ui once that package is populated in a later phase. This exists
+         only so the manifest's android:theme reference resolves. -->
+    <style name="Theme.IdosPos" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

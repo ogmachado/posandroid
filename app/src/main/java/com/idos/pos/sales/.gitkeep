@@ -1,0 +1,1 @@
+Reserved for sales-order + payment-method-catalog capabilities: OrderEntity, OrderLineEntity, PaymentMethodEntity, SalesDao, SalesRepository, cart VM/screens (Phases 2 and 8).

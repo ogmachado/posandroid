@@ -1,0 +1,1 @@
+Reserved for JVM-side Robolectric + in-memory Room tests, colocated per feature package as those packages populate.
