@@ -126,19 +126,21 @@ one place stock is decremented.
 
 ## Room schema (v1 — no migration history)
 
+**Naming convention (reconciled after PR2 review):** column names below are Kotlin entity property names. No `@ColumnInfo(name=...)` overrides are used anywhere, so Room generates the actual SQLite column as the camelCase property name verbatim (e.g. `affectsCashBalance`, `exchangeRate`, `displayOrder`), NOT the snake_case shown in earlier drafts of this table. PR2's `PaymentMethodEntity`/`CurrencyEntity` already implement this camelCase-by-default convention; every later phase must follow the same convention for consistency — do not introduce `@ColumnInfo` snake_case overrides for some tables and not others.
+
 | Table | Key | FKs | Indices / constraints |
 |-------|-----|-----|-----------------------|
 | `unit_measure` | id (auto) | — | unique(`code`) |
 | `category` | id | — | unique(`code`) |
-| `product` | id | `unit_measure_id` (RESTRICT), `category_id` (SET NULL, nullable) | **unique(`code`)**, **unique(`barcode`)** (nullable → SQLite allows many NULLs), index(`category_id`), index(`unit_measure_id`); cols: `name` TEXT, `code` TEXT, `barcode` TEXT(nullable), `price` TEXT(BigDecimal), `cost_price` TEXT(BigDecimal) |
-| `inventory` | `product_id` (PK = FK, 1:1) | `product_id` (CASCADE) | cols: `stock` INT **CHECK(`stock` >= 0)** (DB backstop under the app-level guard), `minimum_stock` INT, `updated_at` |
-| `inventory_movement` | id | `product_id` (RESTRICT), `order_id` (nullable) | index(`product_id`), index(`order_id`), index(`created_at`); cols: `type` TEXT(IN/OUT/ADJUST), `quantity`, `description`, `created_by`, `created_at` |
-| `payment_method` | id | — | unique(`code`); cols: `name`, `affects_cash_balance` BOOL, `active` |
-| `currency` | id | — | unique(`code`); cols: `name`, `symbol`, `exchange_rate` TEXT(BigDecimal), `active`, `display_order` |
-| `cash_session` | id | — | index(`status`); cols: `opened_at`, `closed_at`, `opening_balance`, `closing_balance`, `expected_balance`, `sales_total`, `difference`, `status` (OPEN/CLOSED) |
-| `cash_movement` | id | `session_id` (CASCADE) | index(`session_id`); cols: `type` (DEPOSIT/WITHDRAWAL), `amount`, `reason`, `created_at` |
-| `orders` | id | `session_id` (RESTRICT), `payment_method_id` (RESTRICT) | index(`session_id`), index(`created_at`); cols: `order_number` INT, `total`, `payment`, `change_amount`, `status` (COMPLETED default; VOID reserved for Slice B), `type` (SALE only in Slice A), `created_at` |
-| `order_line` | id | `order_id` (CASCADE), `product_id` (RESTRICT) | index(`order_id`), index(`product_id`); cols: `quantity`, `price`, `cost_price`, `subtotal` |
+| `product` | id | `unitMeasureId` (RESTRICT), `categoryId` (SET NULL, nullable) | **unique(`code`)**, **unique(`barcode`)** (nullable → SQLite allows many NULLs), index(`categoryId`), index(`unitMeasureId`); cols: `name` TEXT, `code` TEXT, `barcode` TEXT(nullable), `price` TEXT(BigDecimal), `costPrice` TEXT(BigDecimal) |
+| `inventory` | `productId` (PK = FK, 1:1) | `productId` (CASCADE) | cols: `stock` INT **CHECK(`stock` >= 0)** (DB backstop under the app-level guard), `minimumStock` INT, `updatedAt` |
+| `inventory_movement` | id | `productId` (RESTRICT), `orderId` (nullable) | index(`productId`), index(`orderId`), index(`createdAt`); cols: `type` TEXT(IN/OUT/ADJUST), `quantity`, `description`, `createdBy`, `createdAt` |
+| `payment_method` | id | — | unique(`code`); cols: `name`, `affectsCashBalance` BOOL, `active` |
+| `currency` | id | — | unique(`code`); cols: `name`, `symbol`, `exchangeRate` TEXT(BigDecimal), `active`, `displayOrder` |
+| `cash_session` | id | — | index(`status`); cols: `openedAt`, `closedAt`, `openingBalance`, `closingBalance`, `expectedBalance`, `salesTotal`, `difference`, `status` (OPEN/CLOSED) |
+| `cash_movement` | id | `sessionId` (CASCADE) | index(`sessionId`); cols: `type` (DEPOSIT/WITHDRAWAL), `amount`, `reason`, `createdAt` |
+| `orders` | id | `sessionId` (RESTRICT), `paymentMethodId` (RESTRICT) | index(`sessionId`), index(`createdAt`); cols: `orderNumber` INT, `total`, `payment`, `changeAmount`, `status` (COMPLETED default; VOID reserved for Slice B), `type` (SALE only in Slice A), `createdAt` |
+| `order_line` | id | `orderId` (CASCADE), `productId` (RESTRICT) | index(`orderId`), index(`productId`); cols: `quantity`, `price`, `costPrice`, `subtotal` |
 
 Notes: `orders` (not `order` — SQL reserved) mirrors the reference table-name workaround.
 Money is `BigDecimal` persisted as TEXT (never `Double`) to preserve exact currency arithmetic.

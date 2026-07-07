@@ -49,30 +49,30 @@ Chaining is not a downgrade for "just an MVP" — it is required at this size.
 
 ## Phase 1: Core Infrastructure
 
-- [ ] 1.1 Create `core/db/PosDatabase.kt` — `@Database` v1 skeleton (entities added per phase below)
-- [ ] 1.2 Create `core/db/Converters.kt` — BigDecimal↔TEXT, Instant↔Long
-- [ ] 1.3 Define `core/domain/DomainError.kt` — sealed interface, all 7 variants per design
-- [ ] 1.4 Create `core/di/AppContainer.kt` — builds Room DB; repo slots filled per capability phase
-- [ ] 1.5 Create `core/di/Locals.kt` — `LocalAppContainer` CompositionLocal + `posViewModel {}` factory
-- [ ] 1.6 Create `PosApplication.kt` — builds `AppContainer` in `onCreate`
-- [ ] 1.7 RED/GREEN (Robolectric): `AppContainer` builds an in-memory-DB test double for use by every later repo test
+- [x] 1.1 Create `core/db/PosDatabase.kt` — `@Database` v1 skeleton (entities added per phase below)
+- [x] 1.2 Create `core/db/Converters.kt` — BigDecimal↔TEXT, Instant↔Long
+- [x] 1.3 Define `core/domain/DomainError.kt` — sealed interface, all 7 variants per design
+- [x] 1.4 Create `core/di/AppContainer.kt` — builds Room DB; repo slots filled per capability phase
+- [x] 1.5 Create `core/di/Locals.kt` — `LocalAppContainer` CompositionLocal + `posViewModel {}` factory
+- [x] 1.6 Create `PosApplication.kt` — builds `AppContainer` in `onCreate`
+- [x] 1.7 RED/GREEN (Robolectric): `AppContainer` builds an in-memory-DB test double for use by every later repo test
 
 ## Phase 2: Seeded Catalogs (must exist before sales-order)
 
-- [ ] 2.1 `catalog/UnitMeasureEntity.kt` + `UnitMeasureDao.kt` (unique `code`)
-- [ ] 2.2 `catalog/CategoryEntity.kt` + `CategoryDao.kt` (unique `code`)
-- [ ] 2.3 `sales/PaymentMethodEntity.kt` + `PaymentMethodDao.kt` — read-only query for POS selector (no edit screen, per design)
-- [ ] 2.4 `currency/CurrencyEntity.kt` + `CurrencyDao.kt`
-- [ ] 2.5 RED (Robolectric): seed callback yields `CASH(affectsCashBalance=true)`/`TRANSFER(false)` + active USD currency
-- [ ] 2.6 GREEN: `RoomDatabase.Callback.onCreate` seeder in `PosDatabase.kt`; seed USD `exchangeRate` as a named, documented, easily-editable constant (placeholder default, e.g. `540`) — NOT a permanent hardcoded business value
-- [ ] 2.7 Register all 4 entities/DAOs on `PosDatabase`; wire into `AppContainer`
+- [x] 2.1 `catalog/UnitMeasureEntity.kt` + `UnitMeasureDao.kt` (unique `code`)
+- [x] 2.2 `catalog/CategoryEntity.kt` + `CategoryDao.kt` (unique `code`)
+- [x] 2.3 `sales/PaymentMethodEntity.kt` + `PaymentMethodDao.kt` — read-only query for POS selector (no edit screen, per design)
+- [x] 2.4 `currency/CurrencyEntity.kt` + `CurrencyDao.kt`
+- [x] 2.5 RED (Robolectric): seed callback yields `CASH(affectsCashBalance=true)`/`TRANSFER(false)` + active USD currency
+- [x] 2.6 GREEN: `RoomDatabase.Callback.onCreate` seeder in `PosDatabase.kt`; seed USD `exchangeRate` as a named, documented, easily-editable constant (placeholder default, e.g. `540`) — NOT a permanent hardcoded business value
+- [x] 2.7 Register all 4 entities/DAOs on `PosDatabase`; wire into `AppContainer`
 
 ## Phase 3: Permission Gate (standalone; needed before price-edit/ADJUST wiring)
 
-- [ ] 3.1 RED (Robolectric): PBKDF2 hash+verify round-trip, correct and incorrect PIN
-- [ ] 3.2 GREEN: `permission/PinRepository.kt` — EncryptedSharedPreferences-backed hash + verify; first-run "set PIN" path
-- [ ] 3.3 `permission/PinGateDialog.kt` + `PinGate.require {}` helper (point-in-time check, no session carry-over)
-- [ ] 3.4 UI test (written alongside): dialog admits on correct PIN, blocks + surfaces `PinIncorrect` on wrong PIN; two gated actions in a row each re-prompt
+- [x] 3.1 RED (Robolectric): PBKDF2 hash+verify round-trip, correct and incorrect PIN
+- [x] 3.2 GREEN: `permission/PinRepository.kt` — EncryptedSharedPreferences-backed hash + verify; first-run "set PIN" path
+- [x] 3.3 `permission/PinGateDialog.kt` + `PinGate.require {}` helper (point-in-time check, no session carry-over)
+- [x] 3.4 UI test (written alongside): dialog admits on correct PIN, blocks + surfaces `PinIncorrect` on wrong PIN; two gated actions in a row each re-prompt
 
 ## Phase 4: Product Catalog
 
