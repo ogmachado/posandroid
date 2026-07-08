@@ -54,6 +54,36 @@ abstract class CashSessionDao {
     abstract fun movementsForSessionFlow(sessionId: Long): Flow<List<CashMovementEntity>>
 
     /**
+     * Raw per-order totals (task 8.3; NOT a SQL `SUM()` — see [sumMoney]) for
+     * cash-affecting sales linked to [sessionId]: joins `orders`/`payment_method`
+     * filtered to `affectsCashBalance = true`. Closes the "PHASE 7 → PHASE 8
+     * SEAM" `ExpectedBalance.kt` documents on [computeExpectedBalance]. Queried
+     * by table name (not entity class) since `orders`/`payment_method` are
+     * owned by `sales`, not `cashsession` — this DAO has no compile
+     * dependency on [com.idos.pos.sales.OrderEntity]/
+     * [com.idos.pos.sales.PaymentMethodEntity], only on the raw SQL schema,
+     * mirroring [movementsForSessionFlow]'s "suspend + Flow paired query"
+     * idiom.
+     */
+    @Query(
+        """
+        SELECT o.total FROM orders o
+        INNER JOIN payment_method pm ON pm.id = o.paymentMethodId
+        WHERE o.sessionId = :sessionId AND pm.affectsCashBalance = 1
+        """,
+    )
+    abstract suspend fun cashSaleTotalsForSession(sessionId: Long): List<BigDecimal>
+
+    @Query(
+        """
+        SELECT o.total FROM orders o
+        INNER JOIN payment_method pm ON pm.id = o.paymentMethodId
+        WHERE o.sessionId = :sessionId AND pm.affectsCashBalance = 1
+        """,
+    )
+    abstract fun cashSaleTotalsForSessionFlow(sessionId: Long): Flow<List<BigDecimal>>
+
+    /**
      * Opens a new session, enforcing "Single Open Session Per Device"
      * (specs/cash-session/spec.md) atomically: check-then-insert in one DAO
      * transaction so no other write can interleave. Throws
@@ -103,15 +133,15 @@ abstract class CashSessionDao {
      * closed" (a second close attempt finds no OPEN row and is rejected the
      * same way), matching [addMovementAtomic]'s reuse of the same variant.
      *
-     * `salesTotal` is hardcoded to [BigDecimal.ZERO] here — see
-     * `ExpectedBalance.kt`'s "PHASE 7 → PHASE 8 SEAM" doc on
-     * [computeExpectedBalance] for why, and what Phase 8 must change.
+     * `salesTotal` is computed from [cashSaleTotalsForSession] (task 8.3) —
+     * see `ExpectedBalance.kt`'s "PHASE 7 → PHASE 8 SEAM — CLOSED" doc on
+     * [computeExpectedBalance].
      */
     @Transaction
     open suspend fun closeSessionAtomic(counted: BigDecimal, closedAt: Instant = Instant.now()): CashSessionEntity {
         val session = findOpenSession() ?: throw DomainException(DomainError.NoOpenSession)
         val movementsNet = movementsForSession(session.id).netAmount()
-        val salesTotal = BigDecimal.ZERO // PHASE 8 TODO — see ExpectedBalance.kt
+        val salesTotal = cashSaleTotalsForSession(session.id).sumMoney()
         val expectedBalance = computeExpectedBalance(session.openingBalance, movementsNet, salesTotal)
         val closed = session.copy(
             closedAt = closedAt,

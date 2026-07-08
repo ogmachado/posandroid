@@ -5,9 +5,9 @@ import java.math.BigDecimal
 import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 
 /**
  * Read model exposed to the ViewModel/UI layer (task 7.5) — a [CashSessionEntity]
@@ -44,14 +44,17 @@ class CashSessionRepository(private val cashSessionDao: CashSessionDao) {
 
     /**
      * Live session view: while OPEN, [CashSessionView.expectedBalance] is
-     * recomputed on every movement (task 7.4) by re-deriving from
-     * [CashSessionEntity.openingBalance] + the live movements list — NEVER
-     * from the (null, while open) persisted snapshot columns. Emits `null`
-     * when no session is open.
+     * recomputed on every movement OR cash sale (task 7.4/8.3) by re-deriving
+     * from [CashSessionEntity.openingBalance] + the live movements list + the
+     * live cash-sales list — NEVER from the (null, while open) persisted
+     * snapshot columns. Emits `null` when no session is open.
      *
-     * `flatMapLatest` re-subscribes to [CashSessionDao.movementsForSessionFlow]
-     * whenever the open session itself changes (opened/closed) — cheap here
-     * since at most one session is ever open at a time.
+     * `flatMapLatest` re-subscribes to [CashSessionDao.movementsForSessionFlow]/
+     * [CashSessionDao.cashSaleTotalsForSessionFlow] whenever the open session
+     * itself changes (opened/closed) — cheap here since at most one session is
+     * ever open at a time. `combine` recomputes on every emission from EITHER
+     * source (a manual movement OR a new sale), closing the "PHASE 7 → PHASE 8
+     * SEAM" `ExpectedBalance.kt` documents (task 8.3).
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     fun currentSessionFlow(): Flow<CashSessionView?> =
@@ -59,8 +62,14 @@ class CashSessionRepository(private val cashSessionDao: CashSessionDao) {
             if (session == null) {
                 flowOf(null)
             } else {
-                cashSessionDao.movementsForSessionFlow(session.id).map { movements ->
-                    toView(session, computeExpectedBalance(session.openingBalance, movements.netAmount()))
+                combine(
+                    cashSessionDao.movementsForSessionFlow(session.id),
+                    cashSessionDao.cashSaleTotalsForSessionFlow(session.id),
+                ) { movements, cashSales ->
+                    toView(
+                        session,
+                        computeExpectedBalance(session.openingBalance, movements.netAmount(), cashSales.sumMoney()),
+                    )
                 }
             }
         }

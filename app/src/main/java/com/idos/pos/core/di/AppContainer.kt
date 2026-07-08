@@ -15,6 +15,8 @@ import com.idos.pos.inventory.InventoryDao
 import com.idos.pos.inventory.InventoryRepository
 import com.idos.pos.permission.PinRepository
 import com.idos.pos.sales.PaymentMethodDao
+import com.idos.pos.sales.SalesDao
+import com.idos.pos.sales.SalesRepository
 
 /**
  * Manual DI service-locator (see design.md "Decision: Manual DI via AppContainer
@@ -27,8 +29,8 @@ import com.idos.pos.sales.PaymentMethodDao
  * Phase 5 (task 5.6) added [inventoryDao]/[inventoryRepository] — [catalogRepository]
  * now depends on [inventoryRepository] to seed a zero-stock row on product
  * creation (closes `CatalogRepository.createProduct`'s former Phase 4 TODO).
- * Phase 7 (task 7.6) adds [cashSessionDao]/[cashSessionRepository]. The sales
- * repository lands with its own phase (8).
+ * Phase 7 (task 7.6) adds [cashSessionDao]/[cashSessionRepository]. Phase 8
+ * (task 8.5) adds [salesDao]/[salesRepository].
  */
 class AppContainer private constructor(
     val database: PosDatabase,
@@ -41,11 +43,15 @@ class AppContainer private constructor(
     val productDao: ProductDao get() = database.productDao()
     val inventoryDao: InventoryDao get() = database.inventoryDao()
     val cashSessionDao: CashSessionDao get() = database.cashSessionDao()
+    val salesDao: SalesDao get() = database.salesDao()
 
     val pinRepository: PinRepository = PinRepository(context)
     val inventoryRepository: InventoryRepository by lazy { InventoryRepository(inventoryDao) }
     val catalogRepository: CatalogRepository by lazy { CatalogRepository(productDao, unitMeasureDao, inventoryRepository) }
     val cashSessionRepository: CashSessionRepository by lazy { CashSessionRepository(cashSessionDao) }
+    val salesRepository: SalesRepository by lazy {
+        SalesRepository(database, salesDao, inventoryDao, paymentMethodDao, cashSessionDao)
+    }
 
     companion object {
         private const val DATABASE_NAME = "idos-pos.db"

@@ -25,17 +25,18 @@ sealed interface ScanUiState {
  * [com.idos.pos.core.di.posViewModel] with the sole [AppContainer]
  * constructor argument, same convention as [com.idos.pos.catalog.ProductViewModel].
  *
- * **Cart-wiring ordering deviation (tasks.md 6.3)**: tasks.md's literal
- * wording is "wire decode → CatalogRepository.findByBarcode → cart-add hit /
- * unknown-barcode create-product prompt on miss", but `sales/CartViewModel`
- * does not exist yet — it lands in Phase 8 (PR7), which comes after this PR
- * (PR5). This class therefore has NO dependency on any sales/cart type: on a
- * hit it only exposes [ScanUiState.Found] with the resolved [ProductEntity];
- * the caller ([BarcodeScanScreen]'s `onProductFound` callback) is where a
- * future Phase 8 call site plugs in "add to cart" — see [BarcodeScanScreen]'s
- * class doc for the exact wiring point. Same deferred-TODO pattern
- * [com.idos.pos.catalog.CatalogRepository]'s class doc used for its Phase 4 →
- * Phase 5 inventory-seed TODO.
+ * **Cart-wiring ordering deviation (tasks.md 6.3) — CLOSED in Phase 8**:
+ * tasks.md's literal wording is "wire decode → CatalogRepository.findByBarcode
+ * → cart-add hit / unknown-barcode create-product prompt on miss", but
+ * `sales/CartViewModel` did not exist yet at the time this class was written
+ * — it landed in Phase 8 (PR7), after this PR (PR5). This class deliberately
+ * has NO dependency on any sales/cart type even now: on a hit it only exposes
+ * [ScanUiState.Found] with the resolved [ProductEntity]; the caller
+ * ([BarcodeScanScreen]'s `onProductFound` callback, wired for real by
+ * `sales/PosScreen.kt` since Phase 8) is where "add to cart" actually happens
+ * — see [BarcodeScanScreen]'s class doc for the exact wiring point. Same
+ * deferred-TODO pattern [com.idos.pos.catalog.CatalogRepository]'s class doc
+ * used for its Phase 4 → Phase 5 inventory-seed TODO.
  *
  * The "unknown barcode → offer create product" path on a miss ([ScanUiState.NotFound])
  * IS real right now (no forward TODO needed) — `catalog/ProductFormScreen.kt`

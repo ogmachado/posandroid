@@ -54,19 +54,20 @@ import java.util.concurrent.Executors
  * and [CameraPermissionGate] renders the matching UI — rationale + "grant"
  * while ungranted, a settings deep-link hint once permanently denied.
  *
- * **Cart-wiring deviation (tasks.md 6.3)**: tasks.md's literal wording is
- * "wire decode → CatalogRepository.findByBarcode → cart-add hit / unknown-
- * barcode create-product prompt on miss", but `sales/CartViewModel` does not
- * exist yet — it lands in Phase 8 (PR7), after this PR. [onProductFound] is
- * therefore an explicit callback: this screen and [ScanViewModel] have NO
- * dependency on any sales/cart type. Whoever wires Phase 8's `PosScreen`
- * passes an `onProductFound = { product -> cartViewModel.addToCart(product) }`
- * lambda here. The "unknown barcode → offer create product" path IS wired
- * for real via [onUnknownBarcode] — `catalog/ProductFormScreen.kt` already
- * exists (Phase 4) and accepts an `initialBarcode` to pre-fill (see that
- * screen's doc). Same deferred-TODO pattern
- * [com.idos.pos.catalog.CatalogRepository]'s class doc used for the Phase 4 →
- * Phase 5 inventory-seed TODO.
+ * **Cart-wiring deviation (tasks.md 6.3) — CLOSED in Phase 8**: tasks.md's
+ * literal wording is "wire decode → CatalogRepository.findByBarcode →
+ * cart-add hit / unknown-barcode create-product prompt on miss", but
+ * `sales/CartViewModel` did not exist at the time this screen was written —
+ * it landed in Phase 8 (PR7), after this PR. [onProductFound] remains an
+ * explicit callback (this screen and [ScanViewModel] still have NO compile
+ * dependency on any sales/cart type), but `sales/PosScreen.kt` (Phase 8) is
+ * now the real call site: it renders this screen with
+ * `onProductFound = { product -> cartViewModel.addToCart(product) }`. The
+ * "unknown barcode → offer create product" path IS wired for real via
+ * [onUnknownBarcode] — `catalog/ProductFormScreen.kt` already exists (Phase 4)
+ * and accepts an `initialBarcode` to pre-fill (see that screen's doc). Same
+ * deferred-TODO pattern [com.idos.pos.catalog.CatalogRepository]'s class doc
+ * used for the Phase 4 → Phase 5 inventory-seed TODO.
  */
 @Composable
 fun BarcodeScanScreen(

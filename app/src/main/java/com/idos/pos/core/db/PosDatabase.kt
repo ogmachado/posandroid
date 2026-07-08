@@ -17,8 +17,11 @@ import com.idos.pos.currency.CurrencyEntity
 import com.idos.pos.inventory.InventoryDao
 import com.idos.pos.inventory.InventoryEntity
 import com.idos.pos.inventory.InventoryMovementEntity
+import com.idos.pos.sales.OrderEntity
+import com.idos.pos.sales.OrderLineEntity
 import com.idos.pos.sales.PaymentMethodDao
 import com.idos.pos.sales.PaymentMethodEntity
+import com.idos.pos.sales.SalesDao
 
 /**
  * `@Database` v1 — no migration history (greenfield, see design.md "Migration /
@@ -27,7 +30,7 @@ import com.idos.pos.sales.PaymentMethodEntity
  * added [ProductEntity]/[ProductDao], Phase 5 (task 5.6) added
  * [InventoryEntity]/[InventoryMovementEntity]/[InventoryDao], and Phase 7
  * (task 7.6) adds [CashSessionEntity]/[CashMovementEntity]/[CashSessionDao].
- * Later phases (sales) add their own entities/DAOs here.
+ * Phase 8 (task 8.5) adds [OrderEntity]/[OrderLineEntity]/[SalesDao].
  */
 @Database(
     entities = [
@@ -40,6 +43,8 @@ import com.idos.pos.sales.PaymentMethodEntity
         InventoryMovementEntity::class,
         CashSessionEntity::class,
         CashMovementEntity::class,
+        OrderEntity::class,
+        OrderLineEntity::class,
     ],
     version = 1,
     exportSchema = true,
@@ -53,4 +58,5 @@ abstract class PosDatabase : RoomDatabase() {
     abstract fun productDao(): ProductDao
     abstract fun inventoryDao(): InventoryDao
     abstract fun cashSessionDao(): CashSessionDao
+    abstract fun salesDao(): SalesDao
 }
