@@ -3,6 +3,9 @@ package com.idos.pos.core.db
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.idos.pos.cashsession.CashMovementEntity
+import com.idos.pos.cashsession.CashSessionDao
+import com.idos.pos.cashsession.CashSessionEntity
 import com.idos.pos.catalog.CategoryDao
 import com.idos.pos.catalog.CategoryEntity
 import com.idos.pos.catalog.ProductDao
@@ -21,9 +24,10 @@ import com.idos.pos.sales.PaymentMethodEntity
  * `@Database` v1 — no migration history (greenfield, see design.md "Migration /
  * Rollout"). Entities/DAOs are registered incrementally per capability phase;
  * Phases 1-3 registered the four seeded-catalog entities, Phase 4 (task 4.7)
- * added [ProductEntity]/[ProductDao], and Phase 5 (task 5.6) adds
- * [InventoryEntity]/[InventoryMovementEntity]/[InventoryDao]. Later phases
- * (cash session, sales) add their own entities/DAOs here.
+ * added [ProductEntity]/[ProductDao], Phase 5 (task 5.6) added
+ * [InventoryEntity]/[InventoryMovementEntity]/[InventoryDao], and Phase 7
+ * (task 7.6) adds [CashSessionEntity]/[CashMovementEntity]/[CashSessionDao].
+ * Later phases (sales) add their own entities/DAOs here.
  */
 @Database(
     entities = [
@@ -34,6 +38,8 @@ import com.idos.pos.sales.PaymentMethodEntity
         ProductEntity::class,
         InventoryEntity::class,
         InventoryMovementEntity::class,
+        CashSessionEntity::class,
+        CashMovementEntity::class,
     ],
     version = 1,
     exportSchema = true,
@@ -46,4 +52,5 @@ abstract class PosDatabase : RoomDatabase() {
     abstract fun currencyDao(): CurrencyDao
     abstract fun productDao(): ProductDao
     abstract fun inventoryDao(): InventoryDao
+    abstract fun cashSessionDao(): CashSessionDao
 }

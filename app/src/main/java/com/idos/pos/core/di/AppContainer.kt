@@ -2,6 +2,8 @@ package com.idos.pos.core.di
 
 import android.content.Context
 import androidx.room.Room
+import com.idos.pos.cashsession.CashSessionDao
+import com.idos.pos.cashsession.CashSessionRepository
 import com.idos.pos.catalog.CatalogRepository
 import com.idos.pos.catalog.CategoryDao
 import com.idos.pos.catalog.ProductDao
@@ -22,10 +24,11 @@ import com.idos.pos.sales.PaymentMethodDao
  * Repository slots are filled in per capability phase — Phases 1-3 expose the
  * seeded-catalog DAOs directly (no repository layer exists for them yet) plus
  * [PinRepository]. Phase 4 (task 4.7) added [productDao]/[catalogRepository].
- * Phase 5 (task 5.6) adds [inventoryDao]/[inventoryRepository] — [catalogRepository]
+ * Phase 5 (task 5.6) added [inventoryDao]/[inventoryRepository] — [catalogRepository]
  * now depends on [inventoryRepository] to seed a zero-stock row on product
  * creation (closes `CatalogRepository.createProduct`'s former Phase 4 TODO).
- * Sales/cash-session repositories land with their own phases.
+ * Phase 7 (task 7.6) adds [cashSessionDao]/[cashSessionRepository]. The sales
+ * repository lands with its own phase (8).
  */
 class AppContainer private constructor(
     val database: PosDatabase,
@@ -37,10 +40,12 @@ class AppContainer private constructor(
     val currencyDao: CurrencyDao get() = database.currencyDao()
     val productDao: ProductDao get() = database.productDao()
     val inventoryDao: InventoryDao get() = database.inventoryDao()
+    val cashSessionDao: CashSessionDao get() = database.cashSessionDao()
 
     val pinRepository: PinRepository = PinRepository(context)
     val inventoryRepository: InventoryRepository by lazy { InventoryRepository(inventoryDao) }
     val catalogRepository: CatalogRepository by lazy { CatalogRepository(productDao, unitMeasureDao, inventoryRepository) }
+    val cashSessionRepository: CashSessionRepository by lazy { CashSessionRepository(cashSessionDao) }
 
     companion object {
         private const val DATABASE_NAME = "idos-pos.db"
