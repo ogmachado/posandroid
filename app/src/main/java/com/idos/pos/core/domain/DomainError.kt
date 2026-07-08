@@ -14,6 +14,7 @@ package com.idos.pos.core.domain
 sealed interface DomainError {
     data class InsufficientStock(val productId: Long, val available: Int, val requested: Int) : DomainError
     data class DuplicateCode(val code: String) : DomainError
+    data class DuplicateBarcode(val barcode: String) : DomainError
     data class PaymentMethodNotFound(val id: Long) : DomainError
     data class UnitMeasureNotFound(val id: Long) : DomainError
     data object NoOpenSession : DomainError

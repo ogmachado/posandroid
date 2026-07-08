@@ -76,13 +76,13 @@ Chaining is not a downgrade for "just an MVP" — it is required at this size.
 
 ## Phase 4: Product Catalog
 
-- [ ] 4.1 `catalog/ProductEntity.kt` + `ProductDao.kt` — unique(`code`), unique-if-present(`barcode`), FK unit_measure(RESTRICT)/category(SET NULL)
-- [ ] 4.2 RED (Robolectric): duplicate code rejected, blank barcode normalized to absent, duplicate barcode rejected, missing unit-of-measure rejected, update preserves uniqueness (own-code/own-barcode keep succeeds)
-- [ ] 4.3 GREEN: `catalog/CatalogRepository.kt` create/update — validates FK + uniqueness, returns `DuplicateCode`/`UnitMeasureNotFound`; seeds zero-stock `inventory` row on create with no movement
-- [ ] 4.4 RED/GREEN: `findByBarcode` repository query + not-found path
-- [ ] 4.5 `catalog/ProductViewModel.kt` + `ProductListScreen.kt`/`ProductFormScreen.kt` (category/unit pickers)
-- [ ] 4.6 Wire price-edit path through `PinGate.require {}` (depends on Phase 3); UI test confirms no bypass path exists
-- [ ] 4.7 Register `ProductEntity`/`ProductDao` on `PosDatabase`; wire `CatalogRepository` into `AppContainer`
+- [x] 4.1 `catalog/ProductEntity.kt` + `ProductDao.kt` — unique(`code`), unique-if-present(`barcode`), FK unit_measure(RESTRICT)/category(SET NULL)
+- [x] 4.2 RED (Robolectric): duplicate code rejected, blank barcode normalized to absent, duplicate barcode rejected, missing unit-of-measure rejected, update preserves uniqueness (own-code/own-barcode keep succeeds)
+- [x] 4.3 GREEN: `catalog/CatalogRepository.kt` create/update — validates FK + uniqueness, returns `DuplicateCode`/`UnitMeasureNotFound`; seeds zero-stock `inventory` row on create with no movement — **deviation**: the `inventory` table doesn't exist until Phase 5, so the seed call is a marked `TODO(Phase 5 — inventory ledger)` in `CatalogRepository.createProduct` instead of an actual call; wire it once `InventoryRepository`/`InventoryDao` land (see Deviations note below)
+- [x] 4.4 RED/GREEN: `findByBarcode` repository query + not-found path
+- [x] 4.5 `catalog/ProductViewModel.kt` + `ProductListScreen.kt`/`ProductFormScreen.kt` (category/unit pickers)
+- [x] 4.6 Wire price-edit path through `PinGate.require {}` (depends on Phase 3); UI test confirms no bypass path exists
+- [x] 4.7 Register `ProductEntity`/`ProductDao` on `PosDatabase`; wire `CatalogRepository` into `AppContainer`
 
 ## Phase 5: Inventory Ledger (single mutation primitive; needed before sales-order)
 

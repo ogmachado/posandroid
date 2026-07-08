@@ -2,7 +2,9 @@ package com.idos.pos.core.di
 
 import android.content.Context
 import androidx.room.Room
+import com.idos.pos.catalog.CatalogRepository
 import com.idos.pos.catalog.CategoryDao
+import com.idos.pos.catalog.ProductDao
 import com.idos.pos.catalog.UnitMeasureDao
 import com.idos.pos.core.db.PosDatabase
 import com.idos.pos.core.db.PosDatabaseSeeder
@@ -15,10 +17,10 @@ import com.idos.pos.sales.PaymentMethodDao
  * service-locator + Compose bridge"). Built once in [com.idos.pos.PosApplication.onCreate]
  * and held for the app's lifetime; exposed to Compose through [LocalAppContainer].
  *
- * Repository slots are filled in per capability phase — Phases 1-3 (this apply
- * batch) expose the seeded-catalog DAOs directly (no repository layer exists for
- * them yet) plus [PinRepository]. Product/inventory/sales/cash-session
- * repositories land with their own phases.
+ * Repository slots are filled in per capability phase — Phases 1-3 expose the
+ * seeded-catalog DAOs directly (no repository layer exists for them yet) plus
+ * [PinRepository]. Phase 4 (task 4.7) adds [productDao]/[catalogRepository].
+ * Inventory/sales/cash-session repositories land with their own phases.
  */
 class AppContainer private constructor(
     val database: PosDatabase,
@@ -28,8 +30,10 @@ class AppContainer private constructor(
     val categoryDao: CategoryDao get() = database.categoryDao()
     val paymentMethodDao: PaymentMethodDao get() = database.paymentMethodDao()
     val currencyDao: CurrencyDao get() = database.currencyDao()
+    val productDao: ProductDao get() = database.productDao()
 
     val pinRepository: PinRepository = PinRepository(context)
+    val catalogRepository: CatalogRepository by lazy { CatalogRepository(productDao, unitMeasureDao) }
 
     companion object {
         private const val DATABASE_NAME = "idos-pos.db"
