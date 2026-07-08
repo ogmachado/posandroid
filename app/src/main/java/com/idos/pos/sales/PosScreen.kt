@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.idos.pos.core.di.LocalAppContainer
 import com.idos.pos.core.di.posViewModel
+import com.idos.pos.currency.CurrencyConversionRows
 import com.idos.pos.scan.BarcodeScanScreen
 import java.math.BigDecimal
 
@@ -51,6 +52,22 @@ import java.math.BigDecimal
  * (specs/sales-order/spec.md "Payment Method Resolution Defaults to CASH");
  * a payment-method selector is straightforward to add later without changing
  * [CartViewModel.confirmSale]'s signature.
+ *
+ * **Currency conversion rows (task 9.3)**: [CurrencyConversionRows] renders
+ * below the total AND below the live change-amount preview, matching the
+ * reference backend's convention (idos-pos `CLAUDE.md` "Payment methods +
+ * alternative currencies" — "renders one conversion row per active currency
+ * below the total" / "below the cambio"). **Deviation from the literal task
+ * wording**: this screen had no live "change" display at all before this
+ * task — only [CartViewModel.confirmSale]'s persisted
+ * [OrderEntity.changeAmount], computed post-confirm. Task 9.3 requires a
+ * conversion row "below the change amount," which requires a change amount
+ * to exist first; a live preview (`parsedPayment - cart.total`, recomputed
+ * from the payment field on every keystroke) was added here as the natural,
+ * minimal vehicle for that row, rather than silently dropping half the
+ * requirement. It is display-only, matches the same value
+ * [SalesRepository.createOrder] will persist once confirmed, and is never
+ * itself persisted.
  */
 @Composable
 fun PosScreen(
@@ -111,6 +128,7 @@ fun PosScreen(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         Text("Total: ${cart.total}", modifier = Modifier.testTag(CART_TOTAL_TEST_TAG))
+        CurrencyConversionRows(amount = cart.total, modifier = Modifier.testTag(TOTAL_CONVERSION_ROWS_TEST_TAG))
 
         OutlinedTextField(
             value = payment,
@@ -118,6 +136,13 @@ fun PosScreen(
             label = { Text("Payment received") },
             modifier = Modifier.fillMaxWidth().testTag(PAYMENT_FIELD_TEST_TAG),
         )
+
+        val parsedPayment = payment.toBigDecimalOrNullSafe()
+        if (parsedPayment != null) {
+            val change = parsedPayment - cart.total
+            Text("Change: $change", modifier = Modifier.testTag(CART_CHANGE_TEST_TAG))
+            CurrencyConversionRows(amount = change, modifier = Modifier.testTag(CHANGE_CONVERSION_ROWS_TEST_TAG))
+        }
 
         if (lastError != null) {
             Text(
@@ -130,8 +155,8 @@ fun PosScreen(
             modifier = Modifier.testTag(CONFIRM_SALE_BUTTON_TEST_TAG),
             enabled = cart.lines.isNotEmpty(),
             onClick = {
-                val parsedPayment = payment.toBigDecimalOrNullSafe() ?: return@Button
-                viewModel.confirmSale(parsedPayment, paymentMethodId = null)
+                val paymentToConfirm = payment.toBigDecimalOrNullSafe() ?: return@Button
+                viewModel.confirmSale(paymentToConfirm, paymentMethodId = null)
                 payment = ""
             },
         ) {
@@ -149,7 +174,10 @@ private fun String.toBigDecimalOrNullSafe(): BigDecimal? = try {
 const val SCAN_BUTTON_TEST_TAG = "pos-scan-button"
 const val CART_EMPTY_TEST_TAG = "pos-cart-empty"
 const val CART_TOTAL_TEST_TAG = "pos-cart-total"
+const val TOTAL_CONVERSION_ROWS_TEST_TAG = "pos-total-conversion-rows"
 const val PAYMENT_FIELD_TEST_TAG = "pos-payment-field"
+const val CART_CHANGE_TEST_TAG = "pos-cart-change"
+const val CHANGE_CONVERSION_ROWS_TEST_TAG = "pos-change-conversion-rows"
 const val SALE_ERROR_TEST_TAG = "pos-sale-error"
 const val CONFIRM_SALE_BUTTON_TEST_TAG = "pos-confirm-sale"
 

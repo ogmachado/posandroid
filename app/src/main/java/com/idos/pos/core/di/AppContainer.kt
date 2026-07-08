@@ -11,6 +11,7 @@ import com.idos.pos.catalog.UnitMeasureDao
 import com.idos.pos.core.db.PosDatabase
 import com.idos.pos.core.db.PosDatabaseSeeder
 import com.idos.pos.currency.CurrencyDao
+import com.idos.pos.currency.CurrencyRepository
 import com.idos.pos.inventory.InventoryDao
 import com.idos.pos.inventory.InventoryRepository
 import com.idos.pos.permission.PinRepository
@@ -30,7 +31,8 @@ import com.idos.pos.sales.SalesRepository
  * now depends on [inventoryRepository] to seed a zero-stock row on product
  * creation (closes `CatalogRepository.createProduct`'s former Phase 4 TODO).
  * Phase 7 (task 7.6) adds [cashSessionDao]/[cashSessionRepository]. Phase 8
- * (task 8.5) adds [salesDao]/[salesRepository].
+ * (task 8.5) adds [salesDao]/[salesRepository]. Phase 9 (task 9.1) adds
+ * [currencyRepository].
  */
 class AppContainer private constructor(
     val database: PosDatabase,
@@ -52,6 +54,7 @@ class AppContainer private constructor(
     val salesRepository: SalesRepository by lazy {
         SalesRepository(database, salesDao, inventoryDao, paymentMethodDao, cashSessionDao)
     }
+    val currencyRepository: CurrencyRepository by lazy { CurrencyRepository(currencyDao) }
 
     companion object {
         private const val DATABASE_NAME = "idos-pos.db"
