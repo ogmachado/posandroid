@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.idos.pos.core.db.PosDatabase
 import com.idos.pos.core.domain.DomainError
 import com.idos.pos.core.domain.domainErrorOrNull
+import com.idos.pos.inventory.InventoryRepository
 import java.math.BigDecimal
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -38,7 +39,7 @@ class CatalogRepositoryTest {
         db = Room.inMemoryDatabaseBuilder(context, PosDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = CatalogRepository(db.productDao(), db.unitMeasureDao())
+        repository = CatalogRepository(db.productDao(), db.unitMeasureDao(), InventoryRepository(db.inventoryDao()))
 
         unitMeasureId = db.unitMeasureDao().insert(UnitMeasureEntity(code = "UNIT", name = "Unit"))
         categoryId = db.categoryDao().insert(CategoryEntity(code = "CAT", name = "Category"))
@@ -66,6 +67,25 @@ class CatalogRepositoryTest {
         assertTrue(result.isSuccess)
         val product = db.productDao().findById(result.getOrThrow())
         assertEquals("SKU-001", product?.code)
+    }
+
+    // --- Scenario: Create a product with valid data (zero-stock seed, Phase 5) ---
+
+    @Test
+    fun createProduct_seedsAZeroStockInventoryRow_withNoMovement() = runBlocking {
+        val id = repository.createProduct(
+            name = "Widget",
+            code = "SKU-005",
+            barcode = null,
+            price = BigDecimal("10.00"),
+            costPrice = BigDecimal("5.00"),
+            unitMeasureId = unitMeasureId,
+            categoryId = categoryId,
+        ).getOrThrow()
+
+        val inventory = db.inventoryDao().findByProductId(id)
+        assertEquals(0, inventory?.stock)
+        assertEquals(0, db.inventoryDao().movementsForProductFlow(id).first().size)
     }
 
     // --- Scenario: Create a product with a duplicate code ---

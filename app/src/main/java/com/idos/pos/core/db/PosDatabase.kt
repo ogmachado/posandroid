@@ -11,15 +11,19 @@ import com.idos.pos.catalog.UnitMeasureDao
 import com.idos.pos.catalog.UnitMeasureEntity
 import com.idos.pos.currency.CurrencyDao
 import com.idos.pos.currency.CurrencyEntity
+import com.idos.pos.inventory.InventoryDao
+import com.idos.pos.inventory.InventoryEntity
+import com.idos.pos.inventory.InventoryMovementEntity
 import com.idos.pos.sales.PaymentMethodDao
 import com.idos.pos.sales.PaymentMethodEntity
 
 /**
  * `@Database` v1 — no migration history (greenfield, see design.md "Migration /
  * Rollout"). Entities/DAOs are registered incrementally per capability phase;
- * Phases 1-3 registered the four seeded-catalog entities, and Phase 4 (task 4.7)
- * adds [ProductEntity]/[ProductDao]. Later phases (inventory, cash session,
- * sales) add their own entities/DAOs here.
+ * Phases 1-3 registered the four seeded-catalog entities, Phase 4 (task 4.7)
+ * added [ProductEntity]/[ProductDao], and Phase 5 (task 5.6) adds
+ * [InventoryEntity]/[InventoryMovementEntity]/[InventoryDao]. Later phases
+ * (cash session, sales) add their own entities/DAOs here.
  */
 @Database(
     entities = [
@@ -28,6 +32,8 @@ import com.idos.pos.sales.PaymentMethodEntity
         PaymentMethodEntity::class,
         CurrencyEntity::class,
         ProductEntity::class,
+        InventoryEntity::class,
+        InventoryMovementEntity::class,
     ],
     version = 1,
     exportSchema = true,
@@ -39,4 +45,5 @@ abstract class PosDatabase : RoomDatabase() {
     abstract fun paymentMethodDao(): PaymentMethodDao
     abstract fun currencyDao(): CurrencyDao
     abstract fun productDao(): ProductDao
+    abstract fun inventoryDao(): InventoryDao
 }

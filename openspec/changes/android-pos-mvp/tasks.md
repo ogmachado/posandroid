@@ -86,12 +86,12 @@ Chaining is not a downgrade for "just an MVP" — it is required at this size.
 
 ## Phase 5: Inventory Ledger (single mutation primitive; needed before sales-order)
 
-- [ ] 5.1 `inventory/InventoryEntity.kt` (1:1 product, `CHECK(stock>=0)`) + `InventoryMovementEntity.kt` + `InventoryDao.kt`
-- [ ] 5.2 RED (Robolectric): IN creates row from none, OUT decrements, OUT rejects when insufficient/no-row (no mutation, no row persisted), ADJUST sets absolute, ADJUST rejects negative qty
-- [ ] 5.3 GREEN: `InventoryDao.applyMovementAtomic` `@Transaction` primitive — append movement + update stock in one DAO transaction; throws `InsufficientStock`, rolls back on violation
-- [ ] 5.4 `inventory/InventoryRepository.kt` — `applyMovement`/`stockFlow`; ADJUST path routed through `PinGate.require {}` (depends on Phase 3)
-- [ ] 5.5 `inventory/InventoryViewModel.kt` + movement-entry `Screen.kt` (IN/OUT/ADJUST forms); minimum-stock editable independent of a movement
-- [ ] 5.6 Register inventory entities/DAO on `PosDatabase`; wire `InventoryRepository` into `AppContainer`
+- [x] 5.1 `inventory/InventoryEntity.kt` (1:1 product, `CHECK(stock>=0)`) + `InventoryMovementEntity.kt` + `InventoryDao.kt` — **deviation**: no DB-level `CHECK(stock>=0)` constraint; Room 2.6.1 (this project's pinned version) has no `@Entity(checkConstraints=...)` parameter (that API is a later Room release). The authoritative guard — the one the spec requires — is the app-level check inside `InventoryDao.applyMovementAtomic`, unaffected by this gap
+- [x] 5.2 RED (Robolectric): IN creates row from none, OUT decrements, OUT rejects when insufficient/no-row (no mutation, no row persisted), ADJUST sets absolute, ADJUST rejects negative qty — `InventoryDaoTest.kt`
+- [x] 5.3 GREEN: `InventoryDao.applyMovementAtomic` `@Transaction` primitive — append movement + update stock in one DAO transaction; throws `InsufficientStock`, rolls back on violation. Also added `DomainError.InvalidMovementQuantity` (9th variant) for ADJUST/negative-quantity rejection — the same kind of DomainError-contract gap `DuplicateBarcode` closed in Phase 4
+- [x] 5.4 `inventory/InventoryRepository.kt` — `applyMovement`/`stockFlow` — **deviation**: PIN-gating for ADJUST is wired in `InventoryViewModel` (task 5.5), not inside this repository. `PinGate` is a Compose-state-backed UI primitive (`mutableStateOf`, built via `rememberPinGate`) that a plain suspend repository cannot depend on without coupling this layer to the Compose runtime; the one existing precedent (`ProductViewModel.submitUpdate`, task 4.6) wraps the repository call in `pinGate.require {}` at the ViewModel layer, and this phase follows that exact precedent instead
+- [x] 5.5 `inventory/InventoryViewModel.kt` + `InventoryListScreen.kt`/`InventoryMovementFormScreen.kt` (IN/OUT/ADJUST forms); minimum-stock editable independent of a movement, never PIN-gated
+- [x] 5.6 Registered `InventoryEntity`/`InventoryMovementEntity`/`InventoryDao` on `PosDatabase`; wired `InventoryRepository` into `AppContainer`. Also closed `CatalogRepository.createProduct`'s Phase 4 `TODO(Phase 5 — inventory ledger)` — now calls `inventoryRepository.seedZeroStock(id)`
 
 ## Phase 6: Barcode Scan (depends on Phase 4's `findByBarcode`)
 

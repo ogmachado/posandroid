@@ -2,6 +2,7 @@ package com.idos.pos.catalog
 
 import com.idos.pos.core.domain.DomainError
 import com.idos.pos.core.domain.DomainException
+import com.idos.pos.inventory.InventoryRepository
 import java.math.BigDecimal
 import kotlinx.coroutines.flow.Flow
 
@@ -19,18 +20,19 @@ import kotlinx.coroutines.flow.Flow
  * as an 8th variant — confirmed with the user as the correct fix over leaving
  * the ambiguity as tech debt.
  *
- * **Phase 4 / Phase 5 sequencing note**: design.md's "File Changes" table says
+ * **Phase 4 → Phase 5 TODO closed**: design.md's "File Changes" table says
  * product creation "Seeds a zero-stock `inventory` row on create (no
- * movement)". The `inventory` table/DAO do not exist yet — they are created in
- * Phase 5 (`inventory/InventoryEntity.kt` + `InventoryDao`, still pending in
- * tasks.md as of this apply batch). Inventing that schema here would violate
- * Phase 5's ownership of it, so the seed call is a marked TODO in
- * [createProduct] instead — wire it once `InventoryRepository`/`InventoryDao`
- * land (PR 4 per the Suggested Work Units table).
+ * movement)". Phase 4 left this as a marked TODO because the `inventory`
+ * table/DAO did not exist yet; Phase 5 (`inventory/InventoryEntity.kt` +
+ * `InventoryDao` + `InventoryRepository`) now exists, so [createProduct]
+ * wires the seed call for real via [inventoryRepository] (specs/product-catalog/spec.md
+ * "the product is persisted with zero stock in the inventory ledger AND no
+ * inventory movement is created as part of product creation").
  */
 class CatalogRepository(
     private val productDao: ProductDao,
     private val unitMeasureDao: UnitMeasureDao,
+    private val inventoryRepository: InventoryRepository,
 ) {
 
     fun findAllFlow(): Flow<List<ProductEntity>> = productDao.findAllFlow()
@@ -66,11 +68,10 @@ class CatalogRepository(
             ),
         )
 
-        // TODO(Phase 5 — inventory ledger): seed a zero-stock `inventory` row
-        // for this product id here, with NO movement, e.g.:
-        //   inventoryRepository.seedZeroStock(id)
-        // Deferred until `InventoryRepository`/`InventoryDao` exist (tasks.md
-        // Phase 5). Do not invent the inventory schema from this module.
+        // Zero-stock inventory row, no movement — specs/product-catalog/spec.md
+        // "Create a product with valid data" (was a Phase 5 TODO; closed now
+        // that InventoryRepository exists).
+        inventoryRepository.seedZeroStock(id)
 
         return Result.success(id)
     }
