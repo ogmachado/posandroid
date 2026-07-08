@@ -34,6 +34,12 @@ import java.math.BigDecimal
  * changed price routes through [pinGate] via [ProductViewModel.submitUpdate]
  * (task 4.6).
  *
+ * **[initialBarcode] (task 6.3)**: when [product] is `null` (create mode),
+ * [com.idos.pos.scan.BarcodeScanScreen]'s "unknown barcode" callback navigates
+ * here passing the scanned code as [initialBarcode] so the operator doesn't
+ * have to retype it. Ignored in edit mode — an existing product's own
+ * [ProductEntity.barcode] always wins.
+ *
  * Deliberately uses a plain [Column] rather than `Scaffold` — this screen has
  * no top bar/FAB/snackbar to justify it, and `Scaffold` composed alongside
  * [PinGateDialog] was found to make Robolectric's Compose idle-detection hang
@@ -46,6 +52,7 @@ fun ProductFormScreen(
     product: ProductEntity?,
     pinGate: PinGate,
     onSaved: () -> Unit,
+    initialBarcode: String? = null,
     viewModel: ProductViewModel = posViewModel(LocalAppContainer.current),
 ) {
     val unitMeasures by viewModel.unitMeasures.collectAsState()
@@ -54,7 +61,7 @@ fun ProductFormScreen(
 
     var name by remember(product) { mutableStateOf(product?.name.orEmpty()) }
     var code by remember(product) { mutableStateOf(product?.code.orEmpty()) }
-    var barcode by remember(product) { mutableStateOf(product?.barcode.orEmpty()) }
+    var barcode by remember(product) { mutableStateOf(product?.barcode ?: initialBarcode.orEmpty()) }
     var price by remember(product) { mutableStateOf(product?.price?.toPlainString().orEmpty()) }
     var costPrice by remember(product) { mutableStateOf(product?.costPrice?.toPlainString().orEmpty()) }
     var selectedUnitMeasureId by remember(product) { mutableStateOf(product?.unitMeasureId) }

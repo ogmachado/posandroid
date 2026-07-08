@@ -123,4 +123,25 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    // Test-fixture-only: encodes a real EAN-13 bitmap at runtime for
+    // BarcodeScanPipelineTest (task 6.4) instead of shipping a static image
+    // asset. Pure-Java barcode encoder, no Android/main-source dependency.
+    androidTestImplementation("com.google.zxing:core:3.5.3")
+}
+
+// Task 6.4 apply-progress note: one JVM per unit-test class. Some existing
+// Compose UI tests (ProductFormScreenTest, InventoryMovementFormScreenTest)
+// intentionally render an AlertDialog and, per their own class docs, already
+// accept that Robolectric's Compose idle-detection never fully settles for
+// that composition within the SAME test method. Left running in a shared
+// forked JVM, that leftover Compose/Robolectric static runtime state was
+// found to leak into later, unrelated Compose test classes (including the
+// new scan/CameraPermissionGateTest, task 6.2/6.4) and make their
+// `setContent`/`waitForIdle` calls hang indefinitely — reproducible only
+// once enough prior Compose test classes had run in the same JVM, and NOT
+// fixed by raising Espresso's idling timeout (see CameraPermissionGateTest's
+// class doc for the full investigation). Forcing a fresh JVM per test class
+// fully isolates that static state without touching any Phase 3/4/5 test file.
+tasks.withType<Test> {
+    forkEvery = 1
 }
