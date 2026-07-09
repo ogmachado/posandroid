@@ -54,9 +54,9 @@ From-scratch security-sensitive subsystem: RSA/JWS crypto, Keystore-backed ident
 
 ## Phase 3: License Repository Orchestration
 
-- [ ] 3.1 RED: `LicenseRepositoryTest.kt` (fakes for dao/verifier/idStore/detector) — `preview()` no-persist, `install()` clears compromised, strict rollback guard (`candidateIssuedAt <= storedIssuedAt` rejected; first activation with no stored license passes), `currentStatus()` COMPROMISED overrides expiry status, `heartbeat()` triangulates+persists
-- [ ] 3.2 GREEN: `licensing/LicenseRepository.kt` — `installationId()`, `currentStatus()`, `preview(jws)`, `install(jws)`, `heartbeat()`; named `GRACE_PERIOD_DAYS = 3L`/`CLOCK_TOLERANCE_SECONDS = 60L` constants, never inlined
-- [ ] 3.3 Wire `licenseStateDao`, `licenseRepository` into `core/di/AppContainer.kt` (lazy, existing pattern)
+- [x] 3.1 RED: `LicenseRepositoryTest.kt` (fakes for dao/verifier/idStore/detector) — `preview()` no-persist, `install()` clears compromised, strict rollback guard (`candidateIssuedAt <= storedIssuedAt` rejected; first activation with no stored license passes), `currentStatus()` COMPROMISED overrides expiry status, `heartbeat()` triangulates+persists
+- [x] 3.2 GREEN: `licensing/LicenseRepository.kt` — `installationId()`, `currentStatus()`, `preview(jws)`, `install(jws)`, `heartbeat()`; named `GRACE_PERIOD_DAYS = 3L`/`CLOCK_TOLERANCE_SECONDS = 60L` constants, never inlined
+- [x] 3.3 Wire `licenseStateDao`, `licenseRepository` into `core/di/AppContainer.kt` (lazy, existing pattern) — also registers `MIGRATION_1_2` on the production `Room.databaseBuilder` call and wires a **placeholder** `res/raw/idos_vendor_pub` DER public key (see deviation note in the apply report / `AppContainer.kt` KDoc — must be replaced with the real vendor key before any signed build)
 
 ## Phase 4: Activation UI
 

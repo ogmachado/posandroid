@@ -1,5 +1,7 @@
 package com.idos.pos.core.domain
 
+import com.idos.pos.licensing.LicenseStatus
+
 /**
  * Exhaustive set of business-rule failures surfaced by repositories/use-cases.
  *
@@ -31,4 +33,26 @@ sealed interface DomainError {
     data object NoOpenSession : DomainError
     data object SessionAlreadyOpen : DomainError
     data object PinIncorrect : DomainError
+
+    /**
+     * **Added in Phase 3** (`licensing` — `LicenseRepository.install`):
+     * signature/product/machine-binding verification failed for a candidate
+     * license at install time (specs/license-activation/spec.md "A license
+     * failing any check is not installed"). [status] carries the specific
+     * [LicenseStatus] rejection reason
+     * (INVALID_SIGNATURE/WRONG_PRODUCT/MACHINE_MISMATCH/MALFORMED/EXPIRED) so
+     * a later UI layer can show an operator-actionable, distinguishable
+     * message instead of one generic "install failed".
+     */
+    data class LicenseVerificationRejected(val status: LicenseStatus) : DomainError
+
+    /**
+     * **Added in Phase 3** (`licensing` — `LicenseRepository.install`): the
+     * candidate's `issuedAt` was not strictly newer than the currently
+     * installed license's `issuedAt` (specs/license-activation/spec.md
+     * "Rollback/Replay Protection" — rejects `candidateIssuedAt <=
+     * storedIssuedAt`; first activation with no stored license always
+     * passes this guard).
+     */
+    data object LicenseRollbackRejected : DomainError
 }
