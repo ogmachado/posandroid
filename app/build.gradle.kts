@@ -54,9 +54,21 @@ android {
         }
     }
 
-    // Room schema export — kept for future migration history even though v1 has none yet.
+    // Room schema export. Exported straight into `src/main/assets` (task 2.6,
+    // moved from the original build-only `$projectDir/schemas`) so the exported
+    // `<database-canonical-name>/<version>.json` files land directly at the
+    // assets ROOT — `androidx.room.testing.MigrationTestHelper` resolves them by
+    // that exact relative path (NOT under any extra subfolder). Only
+    // `main`/`debug` (+ AAR) assets are packaged into the `apk-for-local-test.ap_`
+    // bundle that Robolectric reads for JVM unit tests — a `test`-sourceSet-only
+    // assets dir is NOT included in that bundle in this AGP version (confirmed
+    // empirically: `packageDebugUnitTestForUnitTest`'s output only ever pulls
+    // from `mergeDebugAssets`). Putting the schemas under `main/assets` adds a
+    // few KB of JSON to the production APK, which is the accepted tradeoff for a
+    // real (non-skipped) migration test — see `LicenseStateDaoTest.
+    // migration1to2_appliesCleanly_toAV1SchemaFixture`.
     ksp {
-        arg("room.schemaLocation", "$projectDir/schemas")
+        arg("room.schemaLocation", "$projectDir/src/main/assets")
     }
 
     testOptions {

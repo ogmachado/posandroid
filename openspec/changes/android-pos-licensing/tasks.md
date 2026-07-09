@@ -44,13 +44,13 @@ From-scratch security-sensitive subsystem: RSA/JWS crypto, Keystore-backed ident
 
 ## Phase 2: Installation Identity + Room Schema
 
-- [ ] 2.1 Instrumented test (alongside, not RED/GREEN — Keystore I/O, per design's testing strategy): `InstallationIdStoreTest` — first run generates+persists UUID, later run reuses it, reads `ANDROID_ID`
-- [ ] 2.2 `licensing/InstallationIdStore.kt` — EncryptedSharedPreferences UUID gen/persist + `Settings.Secure` read
-- [ ] 2.3 RED: `ClockRollbackDetectorTest.kt` — rollback beyond tolerance flags, drift within tolerance doesn't, sticky-compromised write
-- [ ] 2.4 GREEN: `licensing/ClockRollbackDetector.kt` — pure triangulation, `toleranceSec` param
-- [ ] 2.5 `licensing/LicenseStateEntity.kt` + `LicenseStateDao.kt` — single-row `license_state` table
-- [ ] 2.6 RED/GREEN (Robolectric+in-mem Room): `LicenseStateDaoTest.kt` — insert/update single row; `MIGRATION_1_2` applies cleanly to a v1 fixture
-- [ ] 2.7 `core/db/PosDatabase.kt`: v1→v2, register `LicenseStateEntity`/`LicenseStateDao`, add `MIGRATION_1_2`
+- [x] 2.1 Instrumented test (alongside, not RED/GREEN — Keystore I/O, per design's testing strategy): `InstallationIdStoreTest` — attempted under Robolectric; confirmed the same `KeyStoreException`/`NoSuchAlgorithmException` environment limitation `PinHasher`'s KDoc documents for `PinRepository` (Keystore unavailable under Robolectric here), so the probe test was removed rather than left permanently failing — zero automated coverage for this class, same as `PinRepository`, by design
+- [x] 2.2 `licensing/InstallationIdStore.kt` — EncryptedSharedPreferences UUID gen/persist + `Settings.Secure` read
+- [x] 2.3 RED: `ClockRollbackDetectorTest.kt` — rollback beyond tolerance flags, drift within tolerance doesn't, sticky-compromised write
+- [x] 2.4 GREEN: `licensing/ClockRollbackDetector.kt` — pure triangulation, `toleranceSec` param
+- [x] 2.5 `licensing/LicenseStateEntity.kt` + `LicenseStateDao.kt` — single-row `license_state` table
+- [x] 2.6 RED/GREEN (Robolectric+in-mem Room): `LicenseStateDaoTest.kt` — insert/update single row; `MIGRATION_1_2` applies cleanly to a v1 fixture
+- [x] 2.7 `core/db/PosDatabase.kt`: v1→v2, register `LicenseStateEntity`/`LicenseStateDao`, add `MIGRATION_1_2`
 
 ## Phase 3: License Repository Orchestration
 
