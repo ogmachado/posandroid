@@ -25,6 +25,7 @@ strict_tdd_scope:
     - "**/*Dao.kt"
     - "core/db/**"
     - "core/domain/**"
+    - "licensing/**" # android-pos-licensing PR1 task 0.1 — offline license domain (LicenseVerifier, InstallationId, ClockRollbackDetector, LicenseRepository)
   exclude:
     - "**/*ViewModel.kt" # UI-adjacent state holder; covered by tests written alongside
     - "**/*Screen.kt" # Compose UI — createComposeRule tests written alongside
