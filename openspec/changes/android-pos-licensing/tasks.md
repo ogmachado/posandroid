@@ -60,9 +60,9 @@ From-scratch security-sensitive subsystem: RSA/JWS crypto, Keystore-backed ident
 
 ## Phase 4: Activation UI
 
-- [ ] 4.1 `licensing/ActivationViewModel.kt` — file-import (SAF `OpenDocument`) / paste-text → preview → confirm → install; distinguishable error per rejection reason (signature/product/binding/replay/expired)
-- [ ] 4.2 `licensing/ActivationScreen.kt` — shows installation-ID (copyable), preview result, confirm/install action
-- [ ] 4.3 Compose UI test (alongside): `ActivationScreenTest.kt` — preview shows claims without installing; install success unlocks; install failure shows rejection reason; file and paste paths produce equivalent outcomes
+- [x] 4.1 `licensing/ActivationViewModel.kt` — file-import (SAF `OpenDocument`) / paste-text → preview → confirm → install; distinguishable error per rejection reason (signature/product/binding/replay/expired)
+- [x] 4.2 `licensing/ActivationScreen.kt` — shows installation-ID (copyable), preview result, confirm/install action
+- [x] 4.3 Compose UI test (alongside): `ActivationScreenTest.kt` — preview shows claims without installing; install success unlocks; install failure shows rejection reason; file and paste paths produce equivalent outcomes
 
 ## Phase 5: Enforcement Gate Wiring
 
