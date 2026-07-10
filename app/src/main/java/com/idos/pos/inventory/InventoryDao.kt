@@ -50,6 +50,24 @@ abstract class InventoryDao {
     )
     abstract fun productStockFlow(): Flow<List<ProductStockView>>
 
+    /**
+     * Single-row counterpart to [productStockFlow] (nav-shell addition — see
+     * `nav/PosNavHost.kt`'s movement-form route): the inventory list screen's
+     * click callback only carries a `productId`, so the movement-form route
+     * needs a one-shot [ProductStockView] lookup by id rather than re-deriving
+     * it from the full list (which would also race the list's own Flow on a
+     * freshly-created ViewModel instance for that route).
+     */
+    @Query(
+        """
+        SELECT p.id AS productId, p.name AS productName, p.code AS productCode,
+               COALESCE(i.stock, 0) AS stock, COALESCE(i.minimumStock, 0) AS minimumStock
+        FROM product p LEFT JOIN inventory i ON i.productId = p.id
+        WHERE p.id = :productId
+        """,
+    )
+    abstract suspend fun findProductStockView(productId: Long): ProductStockView?
+
     @Query("SELECT * FROM inventory_movement WHERE productId = :productId ORDER BY createdAt DESC")
     abstract fun movementsForProductFlow(productId: Long): Flow<List<InventoryMovementEntity>>
 

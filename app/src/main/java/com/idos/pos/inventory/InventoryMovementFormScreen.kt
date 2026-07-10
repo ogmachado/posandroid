@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +48,20 @@ fun InventoryMovementFormScreen(
     viewModel: InventoryViewModel = posViewModel(LocalAppContainer.current),
 ) {
     val lastError by viewModel.lastError.collectAsState()
+    val saveCompleted by viewModel.saveCompleted.collectAsState()
+    val isSaving by viewModel.isSaving.collectAsState()
+
+    // `onSaved()` fires exactly once per SUCCESSFUL movement — see
+    // com.idos.pos.catalog.ProductFormScreen's matching LaunchedEffect and
+    // InventoryViewModel.saveCompleted's doc. Covers both the immediate
+    // IN/OUT path and the PIN-gated ADJUST path, where persistence only
+    // happens later, inside PinGate.submit's invocation of the pending
+    // action after a correct PIN.
+    LaunchedEffect(saveCompleted) {
+        if (saveCompleted > 0) {
+            onSaved()
+        }
+    }
 
     var selectedType by remember(product) { mutableStateOf(MovementType.IN) }
     var quantity by remember(product) { mutableStateOf("") }
@@ -95,6 +110,10 @@ fun InventoryMovementFormScreen(
 
         Button(
             modifier = Modifier.testTag(SUBMIT_MOVEMENT_BUTTON_TEST_TAG),
+            // Defense in depth against a fast double-click — see
+            // InventoryViewModel.isSaving's doc; the real fix is the
+            // ViewModel-level guard.
+            enabled = !isSaving,
             onClick = {
                 val parsedQuantity = quantity.toIntOrNull() ?: return@Button
                 viewModel.recordMovement(
@@ -104,7 +123,13 @@ fun InventoryMovementFormScreen(
                     quantity = parsedQuantity,
                     description = description.ifBlank { null },
                 )
-                onSaved()
+                // onSaved() is NOT called here — see the
+                // LaunchedEffect(saveCompleted) above and
+                // ProductFormScreen.kt's matching comment for why an
+                // unconditional (or `!pinGate.isVisible`-gated) call here is
+                // wrong both ways: it fires while a gated ADJUST is only
+                // pending, and never fires at all once a gated ADJUST
+                // actually completes after a correct PIN.
             },
         ) {
             Text("Record movement")

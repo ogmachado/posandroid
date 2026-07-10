@@ -65,33 +65,60 @@ class EnforcementGateTest {
 
     // --- Requirement: Licensed status renders the app entry composable ---
 
+    /**
+     * [AppRoot]'s content is now [com.idos.pos.nav.PosNavHost] (the real
+     * nav-shell wiring the POS screens — see that file's class doc), which
+     * needs a real [AppContainer] via [LocalAppContainer] to construct its
+     * screens' ViewModels. Previously `AppRoot()` rendered a static
+     * placeholder with no DI needs at all, so this test (like the one below)
+     * never had to provide one; wiring the real shell in makes that
+     * necessary now. Mirrors
+     * [gateFlippingBetweenLicensedAndUnlicensed_leavesSeededPosDataUntouched]'s
+     * existing `AppContainer.createInMemory` + `CompositionLocalProvider` setup.
+     */
     @Test
     fun validStatus_rendersAppRoot_notActivationScreen() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val container = AppContainer.createInMemory(context)
+        container.database.openHelper.writableDatabase // force onCreate/seed
+
         composeTestRule.setContent {
-            EnforcementGate(
-                licenseStatus = LicenseStatus.VALID,
-                onInstalled = {},
-                activationViewModel = fakeActivationViewModel(),
-            )
+            CompositionLocalProvider(LocalAppContainer provides container) {
+                EnforcementGate(
+                    licenseStatus = LicenseStatus.VALID,
+                    onInstalled = {},
+                    activationViewModel = fakeActivationViewModel(),
+                )
+            }
         }
 
         composeTestRule.onNodeWithTag(APP_ROOT_CONTENT_TEST_TAG).assertExists()
         composeTestRule.onNodeWithTag(INSTALLATION_ID_TEST_TAG).assertDoesNotExist()
         composeTestRule.onNodeWithTag(GRACE_PERIOD_BANNER_TEST_TAG).assertDoesNotExist()
+
+        container.database.close()
     }
 
     @Test
     fun inGracePeriodStatus_rendersAppRoot_withPersistentWarningBanner() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val container = AppContainer.createInMemory(context)
+        container.database.openHelper.writableDatabase // force onCreate/seed
+
         composeTestRule.setContent {
-            EnforcementGate(
-                licenseStatus = LicenseStatus.IN_GRACE_PERIOD,
-                onInstalled = {},
-                activationViewModel = fakeActivationViewModel(),
-            )
+            CompositionLocalProvider(LocalAppContainer provides container) {
+                EnforcementGate(
+                    licenseStatus = LicenseStatus.IN_GRACE_PERIOD,
+                    onInstalled = {},
+                    activationViewModel = fakeActivationViewModel(),
+                )
+            }
         }
 
         composeTestRule.onNodeWithTag(APP_ROOT_CONTENT_TEST_TAG).assertExists()
         composeTestRule.onNodeWithTag(GRACE_PERIOD_BANNER_TEST_TAG).assertExists()
+
+        container.database.close()
     }
 
     // --- Requirement: Unlicensed status renders the activation composable, no escape path ---

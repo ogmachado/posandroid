@@ -37,12 +37,45 @@ class InventoryViewModel(container: AppContainer) : ViewModel() {
     private val _lastError = MutableStateFlow<DomainError?>(null)
     val lastError: StateFlow<DomainError?> = _lastError.asStateFlow()
 
+    /**
+     * One-shot-event counter (nav-shell addition — mirrors
+     * [com.idos.pos.catalog.ProductViewModel.saveCompleted]'s rationale exactly).
+     * Bumped ONLY on a successful (non-error) [recordMovement] result — never
+     * on failure, and never merely on `pinGate.require` being invoked (the
+     * ADJUST-gated case only actually persists later, inside [PinGate.submit]).
+     * [InventoryMovementFormScreen] observes this to call `onSaved()`, covering
+     * both the immediate IN/OUT path and the PIN-gated ADJUST path.
+     */
+    private val _saveCompleted = MutableStateFlow(0)
+    val saveCompleted: StateFlow<Int> = _saveCompleted.asStateFlow()
+
+    /**
+     * In-flight save guard (double-click regression fix — mirrors
+     * [com.idos.pos.catalog.ProductViewModel.isSaving] exactly, including WHY
+     * it lives inside [recordMovement]'s `perform` lambda rather than around
+     * the whole function: setting it before `pinGate.require` would leave it
+     * stuck `true` forever if the operator cancels the PIN dialog, since
+     * `PinGate.dismiss` never invokes the pending action). Without this, a
+     * fast double-click on Save/Record could fire two concurrent
+     * [InventoryRepository.applyMovement] calls for the same product.
+     */
+    private val _isSaving = MutableStateFlow(false)
+    val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
+
     fun clearError() {
         _lastError.value = null
     }
 
     fun movementsForProduct(productId: Long): Flow<List<InventoryMovementEntity>> =
         inventoryRepository.movementsForProductFlow(productId)
+
+    /**
+     * By-id lookup for the nav-shell's movement-form route (`nav/PosNavHost.kt`)
+     * — trivial delegate to [InventoryRepository.findProductStockView], mirroring
+     * [com.idos.pos.catalog.ProductViewModel.findById]'s rationale.
+     */
+    suspend fun findProductStockView(productId: Long): ProductStockView? =
+        inventoryRepository.findProductStockView(productId)
 
     /**
      * Records an IN/OUT/ADJUST movement. ADJUST is routed through [pinGate];
@@ -58,14 +91,25 @@ class InventoryViewModel(container: AppContainer) : ViewModel() {
         description: String?,
     ) {
         val perform: () -> Unit = {
-            viewModelScope.launch {
-                val result = inventoryRepository.applyMovement(
-                    productId = productId,
-                    type = type,
-                    quantity = quantity,
-                    description = description,
-                )
-                _lastError.value = result.domainErrorOrNull()
+            if (!_isSaving.value) {
+                _isSaving.value = true
+                viewModelScope.launch {
+                    try {
+                        val result = inventoryRepository.applyMovement(
+                            productId = productId,
+                            type = type,
+                            quantity = quantity,
+                            description = description,
+                        )
+                        val error = result.domainErrorOrNull()
+                        _lastError.value = error
+                        if (error == null) {
+                            _saveCompleted.value += 1
+                        }
+                    } finally {
+                        _isSaving.value = false
+                    }
+                }
             }
         }
 

@@ -28,6 +28,7 @@ import com.idos.pos.licensing.ActivationScreen
 import com.idos.pos.licensing.ActivationViewModel
 import com.idos.pos.licensing.LicenseStatus
 import com.idos.pos.licensing.licensed
+import com.idos.pos.nav.PosNavHost
 import kotlinx.coroutines.launch
 
 /**
@@ -44,14 +45,16 @@ import kotlinx.coroutines.launch
  * - immediately after [ActivationScreen] reports a successful install
  *   (`onInstalled`), so the gate flips without restarting the activity.
  *
- * **`AppRoot()` here is literally the extracted Phase-0 bootstrap content**
- * (`Surface { Box(center) { BootstrapPlaceholder() } }`), per design.md
- * Decision C ("`AppRoot()` = extract of today's Phase-0 `MainActivity`
- * content, renamed — NO shell/nav introduced"). This repo has no navigation
- * graph and none of the standalone feature screens from `android-pos-mvp`
- * (`PosScreen`, `ProductListScreen`, etc.) are wired into the app's entry
- * point yet — that gap pre-dates this change and wiring them in is out of
- * scope here (task 5.1 only asks to extract the *current* Phase-0 content).
+ * **`AppRoot()` originally was just the extracted Phase-0 bootstrap content**
+ * (`Surface { Box(center) { BootstrapPlaceholder() } }`, per design.md
+ * Decision C — "`AppRoot()` = extract of today's Phase-0 `MainActivity`
+ * content, renamed — NO shell/nav introduced"). That gap (no navigation
+ * graph, none of the standalone `android-pos-mvp` feature screens wired in)
+ * was closed by a later, separate piece of work: `AppRoot()`'s content slot
+ * now renders [com.idos.pos.nav.PosNavHost] — a 4-tab bottom-navigation shell
+ * (Venta/Productos/Inventario/Caja) — instead of [BootstrapPlaceholder]. See
+ * that file's class doc for the navigation design. The license-gate wiring
+ * above this composable is untouched.
  */
 class MainActivity : ComponentActivity() {
 
@@ -120,13 +123,13 @@ fun EnforcementGate(
 }
 
 /**
- * Licensed app entry composable (design.md Decision C) — the extracted
- * Phase-0 bootstrap content, unchanged in shape. [isInGracePeriod] renders a
- * persistent warning banner (task 5.3;
+ * Licensed app entry composable (design.md Decision C). [isInGracePeriod]
+ * renders a persistent warning banner (task 5.3;
  * specs/license-enforcement-gate/spec.md "Grace Period Grants Full Access
- * With a Warning") above it; the rest of the composable's content (today,
- * only [BootstrapPlaceholder]) is otherwise unaffected — grace status never
- * restricts POS functionality, only surfaces the warning.
+ * With a Warning") above the main content; the content itself is
+ * [com.idos.pos.nav.PosNavHost] (the bottom-navigation shell wiring the real
+ * POS screens — see that file's class doc). Grace status never restricts POS
+ * functionality, only surfaces the warning above it.
  */
 @Composable
 fun AppRoot(isInGracePeriod: Boolean = false) {
@@ -139,7 +142,7 @@ fun AppRoot(isInGracePeriod: Boolean = false) {
                 modifier = Modifier.weight(1f).fillMaxWidth().testTag(APP_ROOT_CONTENT_TEST_TAG),
                 contentAlignment = Alignment.Center,
             ) {
-                BootstrapPlaceholder()
+                PosNavHost()
             }
         }
     }
@@ -156,11 +159,6 @@ private fun GracePeriodBanner() {
             modifier = Modifier.padding(12.dp),
         )
     }
-}
-
-@Composable
-private fun BootstrapPlaceholder() {
-    Text(text = "IDOS POS — project bootstrap")
 }
 
 const val GRACE_PERIOD_BANNER_TEST_TAG = "app-root-grace-period-banner"

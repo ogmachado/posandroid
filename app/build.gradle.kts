@@ -131,6 +131,12 @@ dependencies {
     testImplementation(composeBom)
     testImplementation("androidx.compose.ui:ui-test-junit4")
     testImplementation("androidx.compose.ui:ui-test-manifest")
+    // Nav-shell test-only seam (nav/PosNavHostTest.kt): TestNavHostController
+    // lets a test drive navigation directly, bypassing UI paths that are
+    // themselves untestable under Robolectric (e.g. the barcode-scan
+    // "unknown barcode" hand-off, which normally goes through
+    // scan/BarcodeScanScreen's real-camera-bound CameraPreviewWithAnalysis).
+    testImplementation("androidx.navigation:navigation-testing:2.7.7")
 
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")

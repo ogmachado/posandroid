@@ -1,6 +1,9 @@
 package com.idos.pos.catalog
 
 import android.os.Looper
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
 import com.idos.pos.core.di.AppContainer
 import com.idos.pos.permission.PinGate
@@ -183,5 +186,128 @@ class ProductViewModelTest {
         waitUntil { container.productDao.findByCode("SKU-200") != null }
         assertFalse(pinGate.isVisible)
         assertNull(viewModel.lastError.value)
+    }
+
+    // --- Double-click regression (coordinator review, final round) ---
+
+    /**
+     * [ProductViewModel.isSaving]'s regression test. Without that guard, a
+     * fast double-click on Save fires two concurrent [createProduct] calls;
+     * [CatalogRepository.createProduct]'s uniqueness check is a non-atomic
+     * check-then-insert (only backstopped by the DB's unique index on
+     * `code`), so both calls could pass the pre-check and race to insert —
+     * the loser crashing with an uncaught `SQLiteConstraintException` rather
+     * than a graceful [DomainError]. The two calls below deliberately use
+     * DIFFERENT `name`/`price` so the test can tell which one (if either)
+     * actually ran: only the FIRST call's data must land — the second must
+     * be a silent no-op, not a crash and not a second attempt that failed
+     * with `DomainError.DuplicateCode`.
+     */
+    @Test
+    fun createProduct_calledTwiceInQuickSuccession_secondCallIsANoOp() = runBlocking {
+        viewModel.createProduct(
+            name = "Double",
+            code = "SKU-DBL-1",
+            barcode = null,
+            price = BigDecimal("5.00"),
+            costPrice = BigDecimal("2.00"),
+            unitMeasureId = existingProduct.unitMeasureId,
+            categoryId = null,
+        )
+        // Simulate a fast double-click: call again immediately, with no
+        // dispatcher yield in between — before the first call's coroutine
+        // could possibly have completed its write.
+        viewModel.createProduct(
+            name = "Double Duplicate Attempt",
+            code = "SKU-DBL-1",
+            barcode = null,
+            price = BigDecimal("9.00"),
+            costPrice = BigDecimal("3.00"),
+            unitMeasureId = existingProduct.unitMeasureId,
+            categoryId = null,
+        )
+
+        waitUntil { container.productDao.findByCode("SKU-DBL-1") != null }
+
+        assertEquals("Double", container.productDao.findByCode("SKU-DBL-1")?.name)
+        assertEquals(BigDecimal("5.00"), container.productDao.findByCode("SKU-DBL-1")?.price)
+        assertNull(viewModel.lastError.value)
+    }
+
+    // --- Gap 2 (coordinator review, nav-shell wiring): does immediate
+    // navigation-away after a save risk cancelling the just-launched
+    // coroutine before it persists? ---
+
+    /**
+     * Reproduces `nav/PosNavHost.kt`'s real risk directly against a real
+     * [ViewModelStore] (bypassing only [ProductFormScreen]'s
+     * `PickerDropdown` UI, which a companion investigation in
+     * `nav/PosNavHostTest.kt` found is not reliably driveable via
+     * `onNodeWithText` after a mid-test click in this Robolectric
+     * environment — the same class of Popup-based-component limitation
+     * already documented for `PinGateDialog`/`AlertDialog`, unrelated to the
+     * race being tested here):
+     *
+     * `PosNavHost`'s `productos/create` route observes
+     * `ProductViewModel.saveCompleted` and calls `onSaved()` (→
+     * `navController.popBackStack()`) ONLY as a reaction to
+     * [createProduct]'s coroutine bumping it — which only happens AFTER the
+     * write already committed, sequentially, inside that same coroutine.
+     * `popBackStack()` clears the `NavBackStackEntry`'s `ViewModelStore`,
+     * which cancels [ProductViewModel]'s `viewModelScope`. This test obtains
+     * a real [ProductViewModel] from a real [ViewModelStore] (the same
+     * [ViewModelProvider.Factory] shape [com.idos.pos.core.di.posViewModel]
+     * uses), calls [createProduct], waits for [ProductViewModel.saveCompleted]
+     * to actually change (mirroring `LaunchedEffect(saveCompleted)`'s real
+     * trigger condition — it never runs before that), and only THEN clears
+     * the store — exactly what `popBackStack()` does to the real one.
+     *
+     * **An earlier draft of this test clearing the store IMMEDIATELY after
+     * calling [createProduct], with no wait for `saveCompleted`, genuinely
+     * lost the write** (the polling assertion below timed out) — confirming
+     * `viewModelScope` cancellation is a REAL risk in the abstract. But that
+     * scenario cannot happen in the actual app: `onSaved()` structurally
+     * cannot run before `saveCompleted` changes, and `saveCompleted` cannot
+     * change before the write commits (same coroutine, sequential). This
+     * test verifies that real, structurally-enforced ordering, not just the
+     * database write's raw speed.
+     */
+    @Test
+    fun createProduct_survivesViewModelStoreClear_triggeredOnlyAfterSaveCompletedFires() = runBlocking {
+        val store = ViewModelStore()
+        val factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return modelClass.getConstructor(AppContainer::class.java).newInstance(container) as T
+            }
+        }
+        val storeScopedViewModel = ViewModelProvider(store, factory)[ProductViewModel::class.java]
+
+        storeScopedViewModel.createProduct(
+            name = "Gadget",
+            code = "SKU-RACE-1",
+            barcode = null,
+            price = BigDecimal("15.00"),
+            costPrice = BigDecimal("7.00"),
+            unitMeasureId = existingProduct.unitMeasureId,
+            categoryId = null,
+        )
+
+        // Mirror LaunchedEffect(saveCompleted)'s real trigger condition —
+        // onSaved()/popBackStack() only ever runs in reaction to this
+        // changing, which the ViewModel only does AFTER createProduct's
+        // write already committed.
+        waitUntil { storeScopedViewModel.saveCompleted.value > 0 }
+
+        // The exact action popBackStack() performs on the real
+        // NavBackStackEntry's ViewModelStore — cancels viewModelScope via
+        // ViewModel.onCleared().
+        store.clear()
+
+        // The write must already be there — saveCompleted only fires after
+        // it commits, so there is nothing left for the cancellation above to
+        // interrupt.
+        assertEquals("Gadget", container.productDao.findByCode("SKU-RACE-1")?.name)
+        assertEquals(BigDecimal("15.00"), container.productDao.findByCode("SKU-RACE-1")?.price)
     }
 }

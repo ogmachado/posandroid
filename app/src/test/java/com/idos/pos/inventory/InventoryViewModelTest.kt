@@ -94,6 +94,14 @@ class InventoryViewModelTest {
         val pinGate = PinGate(verifyPin = { it == correctPin })
         viewModel.recordMovement(pinGate, productId, MovementType.IN, 20, description = null)
         waitUntil { container.inventoryRepository.stockFlowValue(productId) == 20 }
+        // InventoryViewModel.isSaving's guard (double-click regression fix)
+        // is reset in a `finally` AFTER the DB write commits, on a
+        // dispatcher hop back from Room's executor thread — the DB write
+        // becoming visible (above) does not guarantee that reset has
+        // already run. Wait for it explicitly before firing the next call,
+        // or this second recordMovement could be silently treated as a
+        // (legitimate-looking, but wrong here) still-in-flight duplicate.
+        waitUntil { !viewModel.isSaving.value }
 
         viewModel.recordMovement(pinGate, productId, MovementType.OUT, 5, description = null)
 
@@ -108,6 +116,7 @@ class InventoryViewModelTest {
         val pinGate = PinGate(verifyPin = { it == correctPin })
         viewModel.recordMovement(pinGate, productId, MovementType.IN, 15, description = null)
         waitUntil { container.inventoryRepository.stockFlowValue(productId) == 15 }
+        waitUntil { !viewModel.isSaving.value }
 
         viewModel.recordMovement(pinGate, productId, MovementType.ADJUST, 8, description = null)
 
@@ -126,6 +135,7 @@ class InventoryViewModelTest {
         val pinGate = PinGate(verifyPin = { it == correctPin })
         viewModel.recordMovement(pinGate, productId, MovementType.IN, 15, description = null)
         waitUntil { container.inventoryRepository.stockFlowValue(productId) == 15 }
+        waitUntil { !viewModel.isSaving.value }
 
         viewModel.recordMovement(pinGate, productId, MovementType.ADJUST, 8, description = null)
         pinGate.submit("9999")
@@ -145,6 +155,35 @@ class InventoryViewModelTest {
 
         waitUntil { container.database.inventoryDao().findByProductId(productId)?.minimumStock == 5 }
         assertFalse(pinGate.isVisible)
+    }
+
+    // --- Double-click regression (coordinator review, final round) ---
+
+    /**
+     * [InventoryViewModel.isSaving]'s regression test. Without that guard, a
+     * fast double-click on "Record movement" fires two concurrent
+     * [recordMovement] calls for the same IN movement — both would apply,
+     * double-counting the stock increase. The two calls below use no
+     * dispatcher yield in between, simulating the fastest possible
+     * double-click; only ONE `IN 20` must land.
+     */
+    @Test
+    fun recordMovement_calledTwiceInQuickSuccession_secondCallIsANoOp() = runBlocking {
+        val pinGate = PinGate(verifyPin = { it == correctPin })
+
+        viewModel.recordMovement(pinGate, productId, MovementType.IN, 20, description = null)
+        viewModel.recordMovement(pinGate, productId, MovementType.IN, 20, description = null)
+
+        waitUntil { container.inventoryRepository.stockFlowValue(productId) == 20 }
+
+        // Let any (incorrectly) concurrent second write a further chance to
+        // land before asserting it didn't.
+        repeat(5) {
+            shadowOf(Looper.getMainLooper()).idle()
+            delay(20)
+        }
+        assertEquals(20, container.inventoryRepository.stockFlowValue(productId))
+        assertNull(viewModel.lastError.value)
     }
 }
 

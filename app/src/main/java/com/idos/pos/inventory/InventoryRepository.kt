@@ -35,6 +35,9 @@ class InventoryRepository(private val inventoryDao: InventoryDao) {
 
     fun productStockFlow(): Flow<List<ProductStockView>> = inventoryDao.productStockFlow()
 
+    /** One-shot by-id lookup for the nav-shell's movement-form route — see [InventoryDao.findProductStockView]. */
+    suspend fun findProductStockView(productId: Long): ProductStockView? = inventoryDao.findProductStockView(productId)
+
     fun movementsForProductFlow(productId: Long): Flow<List<InventoryMovementEntity>> =
         inventoryDao.movementsForProductFlow(productId)
 

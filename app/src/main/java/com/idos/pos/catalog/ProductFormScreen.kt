@@ -13,6 +13,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +59,23 @@ fun ProductFormScreen(
     val unitMeasures by viewModel.unitMeasures.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val lastError by viewModel.lastError.collectAsState()
+    val saveCompleted by viewModel.saveCompleted.collectAsState()
+    val isSaving by viewModel.isSaving.collectAsState()
+
+    // `onSaved()` fires exactly once per SUCCESSFUL save — covers both the
+    // immediate ungated path (create, or edit with no price change) and the
+    // PIN-gated path, where the actual persistence only happens later, inside
+    // PinGate.submit's invocation of the pending action after a correct PIN.
+    // See ProductViewModel.saveCompleted's doc for why a naive
+    // "!pinGate.isVisible" check in the Save button's onClick is NOT enough —
+    // it only ever fires onSaved() for the immediate path and never at all
+    // once a gated save actually completes, leaving the operator stuck on
+    // this screen with no way back after a correct PIN entry.
+    LaunchedEffect(saveCompleted) {
+        if (saveCompleted > 0) {
+            onSaved()
+        }
+    }
 
     var name by remember(product) { mutableStateOf(product?.name.orEmpty()) }
     var code by remember(product) { mutableStateOf(product?.code.orEmpty()) }
@@ -132,6 +150,11 @@ fun ProductFormScreen(
 
             Button(
                 modifier = Modifier.testTag(SAVE_BUTTON_TEST_TAG),
+                // Defense in depth against a fast double-click — see
+                // ProductViewModel.isSaving's doc for why the REAL fix is the
+                // ViewModel-level guard, not this disable (a click landing in
+                // the single frame before this recomposes must still be safe).
+                enabled = !isSaving,
                 onClick = {
                     val unitMeasureId = selectedUnitMeasureId ?: return@Button
                     val parsedPrice = price.toBigDecimalOrNull() ?: return@Button
@@ -166,7 +189,17 @@ fun ProductFormScreen(
                             categoryId = selectedCategoryId,
                         )
                     }
-                    onSaved()
+                    // onSaved() is NOT called here — see the
+                    // LaunchedEffect(saveCompleted) above. Calling it
+                    // unconditionally right here (an earlier revision of this
+                    // nav-shell wiring did exactly that) is wrong two ways:
+                    // it fires even when a gated save is only PENDING (never
+                    // confirmed), tearing PinGateDialog down before the
+                    // operator can answer it; and it never fires at all once
+                    // a gated save actually DOES complete after a correct
+                    // PIN, since nothing else calls onSaved() after that
+                    // point — the operator would be stuck on this screen
+                    // indefinitely with no way back.
                 },
             ) {
                 Text("Save")
