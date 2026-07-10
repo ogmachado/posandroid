@@ -66,10 +66,10 @@ From-scratch security-sensitive subsystem: RSA/JWS crypto, Keystore-backed ident
 
 ## Phase 5: Enforcement Gate Wiring
 
-- [ ] 5.1 `MainActivity.kt`: extract current Phase-0 content into `AppRoot()`; add `if (licensed) AppRoot() else ActivationScreen()` boolean gate; `onResume` calls `licenseRepository.heartbeat()`
-- [ ] 5.2 `PosApplication.kt`: startup `currentStatus()` eval before first composition
-- [ ] 5.3 Persistent warning banner in `AppRoot()` when status is `IN_GRACE_PERIOD`
-- [ ] 5.4 UI test (alongside): gate renders `AppRoot()` for VALID/GRACE, `ActivationScreen` for NOT_CONFIGURED/EXPIRED/COMPROMISED with no escape path; existing POS data intact across a gate flip
+- [x] 5.1 `MainActivity.kt`: extract current Phase-0 content into `AppRoot()`; add `if (licensed) AppRoot() else ActivationScreen()` boolean gate; `onResume` calls `licenseRepository.heartbeat()`
+- [x] 5.2 `PosApplication.kt`: startup `currentStatus()` eval before first composition
+- [x] 5.3 Persistent warning banner in `AppRoot()` when status is `IN_GRACE_PERIOD`
+- [x] 5.4 UI test (alongside): gate renders `AppRoot()` for VALID/GRACE, `ActivationScreen` for NOT_CONFIGURED/EXPIRED/COMPROMISED with no escape path; existing POS data intact across a gate flip
 
 ## Phase 6: R8 Flip + Mandatory Full-App Smoke Pass
 

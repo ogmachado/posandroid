@@ -42,3 +42,13 @@ enum class LicenseStatus {
     /** Structurally invalid JWS: wrong part count, undecodable base64url, invalid JSON, or unsupported `alg`. */
     MALFORMED
 }
+
+/**
+ * The single derived boolean the enforcement gate (Phase 5, `MainActivity`)
+ * reads — specs/license-enforcement-gate/spec.md "Hard Block Outside
+ * VALID/GRACE". Callers MUST branch on this property, never inline the
+ * `setOf(VALID, IN_GRACE_PERIOD)` check themselves, so the two licensed
+ * variants stay defined in exactly one place.
+ */
+val LicenseStatus.licensed: Boolean
+    get() = this == LicenseStatus.VALID || this == LicenseStatus.IN_GRACE_PERIOD
