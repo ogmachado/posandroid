@@ -23,7 +23,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Global flip (task 6.1, android-pos-licensing Phase 6) — obfuscates/
+            // shrinks the ENTIRE app (Compose, CameraX, MLKit, security-crypto,
+            // Room, licensing/**), not just the new licensing package. See
+            // design.md "R8 / ProGuard" and the mandatory full-app smoke pass
+            // requirement (task 6.3).
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

@@ -73,9 +73,11 @@ From-scratch security-sensitive subsystem: RSA/JWS crypto, Keystore-backed ident
 
 ## Phase 6: R8 Flip + Mandatory Full-App Smoke Pass
 
-- [ ] 6.1 `app/build.gradle.kts`: `release { isMinifyEnabled = true }` (global flip, not licensing-scoped)
-- [ ] 6.2 `proguard-rules.pro`: `-keep class com.idos.pos.licensing.** { *; }` precautionary rule
-- [ ] 6.3 **MANDATORY, not optional/deferrable**: build a signed release APK and run a full-app smoke pass — barcode scan (MLKit/CameraX), product CRUD, a completed sale, cash-session open/close, AND activation/preview/install/gate. Add any missing keep rules (MLKit/CameraX/Room) this surfaces; do not defer silently to a later change
+- [x] 6.1 `app/build.gradle.kts`: `release { isMinifyEnabled = true }` (global flip, not licensing-scoped)
+- [x] 6.2 `proguard-rules.pro`: `-keep class com.idos.pos.licensing.** { *; }` precautionary rule
+- [ ] 6.3 **MANDATORY, not optional/deferrable**: build a signed release APK and run a full-app smoke pass — barcode scan (MLKit/CameraX), product CRUD, a completed sale, cash-session open/close, AND activation/preview/install/gate. Add any missing keep rules (MLKit/CameraX/Room) this surfaces; do not defer silently to a later change.
+  - `./gradlew assembleRelease` succeeds with `isMinifyEnabled = true`; R8 usage report (`app/build/outputs/mapping/release/usage.txt`) confirms zero `com.idos.pos.licensing` classes/members stripped. Produced `app-release-unsigned.apk`, then debug-keystore-signed it (`apksigner sign` + `verify`, no production signing config exists in this project yet) to `app-release-debugsigned.apk` as the closest available installable minified artifact.
+  - **NOT completed**: the actual on-device/emulator smoke pass (barcode scan, product CRUD, a completed sale, cash-session open/close, activation/preview/install/gate) could not be run in this apply environment — no AVD system image and no connected physical device are available (`adb devices` empty, `avdmanager list avd` empty, SDK has `platform-tools`/`build-tools` only, no `system-images`/emulator binary). Left unchecked on purpose; see apply report for the exact steps a human must run to close this out.
 
 ## Phase 7: Cross-Repo CLI Extension (`idos-pos` repo — separate PR)
 
