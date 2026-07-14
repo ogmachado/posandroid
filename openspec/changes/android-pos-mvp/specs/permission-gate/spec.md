@@ -2,7 +2,9 @@
 
 ## Purpose
 
-A single local manager-PIN primitive that gates two sensitive actions: editing a product's price, and recording an `ADJUST` inventory movement. This is NOT a user/account/role system — there is one PIN, checked at the point of the sensitive action, with no login flow and no persisted session-based auth state beyond "the PIN was just entered for this action."
+> **Superseded (2026-07-13) by `android-pos-auth`.** This spec's original Purpose statement below — *"This is NOT a user/account/role system ... there is one PIN, checked at the point of the sensitive action, with no login flow and no persisted session-based auth state"* — no longer describes the app. `android-pos-auth` introduced a real per-user credential model, roles, and a login gate, and reverses that statement. The current source of truth for this gate is `openspec/changes/android-pos-auth/specs/permission-gate/spec.md`, which amends the requirements below to check the entered PIN against any user holding the `ADMIN` role (not a single standalone PIN), while retaining this gate's original point-in-time, no-session-carry-over character. The original Purpose text is kept below, struck through in spirit, purely for historical record of what this spec described before the amendment.
+>
+> ~~A single local manager-PIN primitive that gates two sensitive actions: editing a product's price, and recording an `ADJUST` inventory movement. This is NOT a user/account/role system — there is one PIN, checked at the point of the sensitive action, with no login flow and no persisted session-based auth state beyond "the PIN was just entered for this action."~~
 
 ## Requirements
 
