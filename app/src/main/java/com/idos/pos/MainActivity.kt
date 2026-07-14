@@ -28,7 +28,7 @@ import com.idos.pos.licensing.ActivationScreen
 import com.idos.pos.licensing.ActivationViewModel
 import com.idos.pos.licensing.LicenseStatus
 import com.idos.pos.licensing.licensed
-import com.idos.pos.nav.PosNavHost
+import com.idos.pos.permission.AuthGate
 import kotlinx.coroutines.launch
 
 /**
@@ -51,10 +51,14 @@ import kotlinx.coroutines.launch
  * content, renamed — NO shell/nav introduced"). That gap (no navigation
  * graph, none of the standalone `android-pos-mvp` feature screens wired in)
  * was closed by a later, separate piece of work: `AppRoot()`'s content slot
- * now renders [com.idos.pos.nav.PosNavHost] — a 4-tab bottom-navigation shell
- * (Venta/Productos/Inventario/Caja) — instead of [BootstrapPlaceholder]. See
- * that file's class doc for the navigation design. The license-gate wiring
- * above this composable is untouched.
+ * rendered [com.idos.pos.nav.PosNavHost] directly — a 4-tab bottom-navigation
+ * shell (Venta/Productos/Inventario/Caja) — instead of [BootstrapPlaceholder].
+ * `android-pos-auth` Phase 2 (task 2.5; design.md Decision E) inserts the
+ * identity gate stack in front of that shell: `AppRoot()`'s content slot now
+ * renders [com.idos.pos.permission.AuthGate] — a nested `when` swap
+ * (Onboarding → Login → `PosNavHost`) — instead of calling `PosNavHost()`
+ * directly. See that composable's class doc for the onboarding/login design.
+ * The license-gate wiring above this composable is untouched.
  */
 class MainActivity : ComponentActivity() {
 
@@ -127,9 +131,11 @@ fun EnforcementGate(
  * renders a persistent warning banner (task 5.3;
  * specs/license-enforcement-gate/spec.md "Grace Period Grants Full Access
  * With a Warning") above the main content; the content itself is
- * [com.idos.pos.nav.PosNavHost] (the bottom-navigation shell wiring the real
- * POS screens — see that file's class doc). Grace status never restricts POS
- * functionality, only surfaces the warning above it.
+ * [com.idos.pos.permission.AuthGate] (`android-pos-auth` Phase 2 task 2.5 —
+ * onboarding/login gate stack in front of [com.idos.pos.nav.PosNavHost], the
+ * bottom-navigation shell wiring the real POS screens — see that composable's
+ * class doc). Grace status never restricts POS functionality, only surfaces
+ * the warning above it.
  */
 @Composable
 fun AppRoot(isInGracePeriod: Boolean = false) {
@@ -142,7 +148,7 @@ fun AppRoot(isInGracePeriod: Boolean = false) {
                 modifier = Modifier.weight(1f).fillMaxWidth().testTag(APP_ROOT_CONTENT_TEST_TAG),
                 contentAlignment = Alignment.Center,
             ) {
-                PosNavHost()
+                AuthGate()
             }
         }
     }
