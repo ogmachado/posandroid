@@ -55,4 +55,20 @@ sealed interface DomainError {
      * passes this guard).
      */
     data object LicenseRollbackRejected : DomainError
+
+    /**
+     * **Added in Phase 1 of `android-pos-auth`** (`permission` —
+     * `AuthRepository.createUser`): a user-creation attempt named a
+     * `username` that already exists (`user-identity` spec — unique per-user
+     * identifier, enforced by `app_user`'s unique `username` index).
+     */
+    data class DuplicateUsername(val username: String) : DomainError
+
+    /**
+     * **Added in Phase 1 of `android-pos-auth`** (`permission` —
+     * `AuthRepository.createUser`): a user-creation attempt supplied a blank
+     * PIN. No PIN-length/character-set rule is specified beyond
+     * non-blank (`user-identity` design-level open question).
+     */
+    data object BlankPin : DomainError
 }

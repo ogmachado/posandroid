@@ -3,6 +3,8 @@ package com.idos.pos.core.di
 import android.content.Context
 import androidx.room.Room
 import com.idos.pos.R
+import com.idos.pos.business.BusinessProfileDao
+import com.idos.pos.business.BusinessProfileRepository
 import com.idos.pos.cashsession.CashSessionDao
 import com.idos.pos.cashsession.CashSessionRepository
 import com.idos.pos.catalog.CatalogRepository
@@ -10,6 +12,7 @@ import com.idos.pos.catalog.CategoryDao
 import com.idos.pos.catalog.ProductDao
 import com.idos.pos.catalog.UnitMeasureDao
 import com.idos.pos.core.db.MIGRATION_1_2
+import com.idos.pos.core.db.MIGRATION_2_3
 import com.idos.pos.core.db.PosDatabase
 import com.idos.pos.core.db.PosDatabaseSeeder
 import com.idos.pos.currency.CurrencyDao
@@ -21,7 +24,9 @@ import com.idos.pos.licensing.InstallationIdStore
 import com.idos.pos.licensing.LicenseRepository
 import com.idos.pos.licensing.LicenseStateDao
 import com.idos.pos.licensing.LicenseVerifier
+import com.idos.pos.permission.AuthRepository
 import com.idos.pos.permission.PinRepository
+import com.idos.pos.permission.UserDao
 import com.idos.pos.sales.PaymentMethodDao
 import com.idos.pos.sales.SalesDao
 import com.idos.pos.sales.SalesRepository
@@ -65,8 +70,12 @@ class AppContainer private constructor(
     val cashSessionDao: CashSessionDao get() = database.cashSessionDao()
     val salesDao: SalesDao get() = database.salesDao()
     val licenseStateDao: LicenseStateDao get() = database.licenseStateDao()
+    val userDao: UserDao get() = database.userDao()
+    val businessProfileDao: BusinessProfileDao get() = database.businessProfileDao()
 
     val pinRepository: PinRepository = PinRepository(context)
+    val authRepository: AuthRepository by lazy { AuthRepository(userDao, context) }
+    val businessProfileRepository: BusinessProfileRepository by lazy { BusinessProfileRepository(businessProfileDao) }
     val inventoryRepository: InventoryRepository by lazy { InventoryRepository(inventoryDao) }
     val catalogRepository: CatalogRepository by lazy { CatalogRepository(productDao, unitMeasureDao, inventoryRepository) }
     val cashSessionRepository: CashSessionRepository by lazy { CashSessionRepository(cashSessionDao) }
@@ -94,13 +103,14 @@ class AppContainer private constructor(
 
         /**
          * Production factory — file-backed database, seeded via [PosDatabaseSeeder].
-         * Registers [MIGRATION_1_2] (v1 -> v2, additive `license_state` table) —
+         * Registers [MIGRATION_1_2] (v1 -> v2, additive `license_state` table) and
+         * [MIGRATION_2_3] (v2 -> v3, additive `app_user`/`business_profile` tables) —
          * required so an existing on-device database upgrades instead of crashing.
          */
         fun create(context: Context): AppContainer {
             val db = Room.databaseBuilder(context, PosDatabase::class.java, DATABASE_NAME)
                 .addCallback(PosDatabaseSeeder.callback)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
             return AppContainer(db, context)
         }
