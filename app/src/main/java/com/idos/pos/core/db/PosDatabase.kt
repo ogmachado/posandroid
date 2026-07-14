@@ -3,6 +3,8 @@ package com.idos.pos.core.db
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.idos.pos.business.BusinessProfileDao
+import com.idos.pos.business.BusinessProfileEntity
 import com.idos.pos.cashsession.CashMovementEntity
 import com.idos.pos.cashsession.CashSessionDao
 import com.idos.pos.cashsession.CashSessionEntity
@@ -19,6 +21,8 @@ import com.idos.pos.inventory.InventoryEntity
 import com.idos.pos.inventory.InventoryMovementEntity
 import com.idos.pos.licensing.LicenseStateDao
 import com.idos.pos.licensing.LicenseStateEntity
+import com.idos.pos.permission.UserDao
+import com.idos.pos.permission.UserEntity
 import com.idos.pos.sales.OrderEntity
 import com.idos.pos.sales.OrderLineEntity
 import com.idos.pos.sales.PaymentMethodDao
@@ -38,6 +42,11 @@ import com.idos.pos.sales.SalesDao
  * see `Migrations.kt`'s [MIGRATION_1_2]. Wiring `.addMigrations(MIGRATION_1_2)`
  * into the production `Room.databaseBuilder` call
  * (`core/di/AppContainer.kt`) is Phase 3 (PR3) — out of scope here.
+ * Phase 1 of `android-pos-auth` (task 1.10) is the second migration: v2 -> v3
+ * additively registers [UserEntity]/[UserDao] and
+ * [BusinessProfileEntity]/[BusinessProfileDao] — see `Migrations.kt`'s
+ * [MIGRATION_2_3], registered on the production `Room.databaseBuilder` call
+ * in the same PR (task 1.17).
  */
 @Database(
     entities = [
@@ -53,8 +62,10 @@ import com.idos.pos.sales.SalesDao
         OrderEntity::class,
         OrderLineEntity::class,
         LicenseStateEntity::class,
+        UserEntity::class,
+        BusinessProfileEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -68,4 +79,6 @@ abstract class PosDatabase : RoomDatabase() {
     abstract fun cashSessionDao(): CashSessionDao
     abstract fun salesDao(): SalesDao
     abstract fun licenseStateDao(): LicenseStateDao
+    abstract fun userDao(): UserDao
+    abstract fun businessProfileDao(): BusinessProfileDao
 }
