@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.idos.pos.core.di.AppContainer
 import com.idos.pos.core.di.LocalAppContainer
@@ -18,6 +19,7 @@ import com.idos.pos.licensing.LicenseStateEntity
 import com.idos.pos.licensing.LicenseStatus
 import com.idos.pos.licensing.LicenseVerifier
 import com.idos.pos.permission.AuthRepository
+import com.idos.pos.permission.UserRole
 import com.idos.pos.catalog.UnitMeasureEntity
 import java.math.BigDecimal
 import kotlinx.coroutines.runBlocking
@@ -168,6 +170,63 @@ class EnforcementGateTest {
         composeTestRule.onNodeWithTag(APP_ROOT_CONTENT_TEST_TAG).assertDoesNotExist()
     }
 
+    // --- Requirement (user-management): A CASHIER Has No Account-Creation Path ---
+
+    /**
+     * `android-pos-auth` Phase 4 task 4.2 (design.md Decision J): the
+     * ADMIN-only user-management header action must not be rendered/reachable
+     * for a `CASHIER` session — `AppRoot` derives this from
+     * [com.idos.pos.permission.AuthGateState.Authenticated.role], not from any
+     * check inside `UserManagementScreen` itself (see
+     * [com.idos.pos.permission.UserManagementScreenTest]'s class doc).
+     */
+    @Test
+    fun cashierSession_hasNoUserManagementHeaderAction() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val container = AppContainer.createInMemory(context)
+        container.database.openHelper.writableDatabase // force onCreate/seed
+        seedBusinessProfileAndLoginAsCashier(container)
+
+        composeTestRule.setContent {
+            CompositionLocalProvider(LocalAppContainer provides container) {
+                EnforcementGate(
+                    licenseStatus = LicenseStatus.VALID,
+                    onInstalled = {},
+                    activationViewModel = fakeActivationViewModel(),
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag(APP_ROOT_CONTENT_TEST_TAG).assertExists()
+        composeTestRule.onNodeWithTag(USER_MANAGEMENT_HEADER_BUTTON_TEST_TAG).assertDoesNotExist()
+
+        container.database.close()
+    }
+
+    @Test
+    fun adminSession_hasUserManagementHeaderAction_thatOpensUserManagementScreen() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val container = AppContainer.createInMemory(context)
+        container.database.openHelper.writableDatabase // force onCreate/seed
+        seedBusinessProfileAndLogin(container)
+
+        composeTestRule.setContent {
+            CompositionLocalProvider(LocalAppContainer provides container) {
+                EnforcementGate(
+                    licenseStatus = LicenseStatus.VALID,
+                    onInstalled = {},
+                    activationViewModel = fakeActivationViewModel(),
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag(USER_MANAGEMENT_HEADER_BUTTON_TEST_TAG).assertExists()
+        composeTestRule.onNodeWithTag(USER_MANAGEMENT_HEADER_BUTTON_TEST_TAG).performClick()
+        composeTestRule.onNodeWithTag(com.idos.pos.permission.USER_MANAGEMENT_TITLE_TEST_TAG).assertExists()
+
+        container.database.close()
+    }
+
     // --- Requirement: On-Device Data Survives Re-Blocking and Re-Activation ---
 
     /**
@@ -252,6 +311,18 @@ private fun seedBusinessProfileAndLogin(container: AppContainer) = runBlocking {
     container.businessProfileRepository.save("Acme", "123 Main St", "555-0100")
     container.authRepository.ensureDefaultAdminSeeded()
     container.authRepository.login(AuthRepository.DEFAULT_ADMIN_USERNAME, AuthRepository.DEFAULT_ADMIN_PIN)
+}
+
+/**
+ * `android-pos-auth` Phase 4 (task 4.2) — a CASHIER-authenticated variant of
+ * [seedBusinessProfileAndLogin], used to verify the ADMIN-only
+ * user-management header action stays unreachable for a CASHIER session.
+ */
+private fun seedBusinessProfileAndLoginAsCashier(container: AppContainer) = runBlocking {
+    container.businessProfileRepository.save("Acme", "123 Main St", "555-0100")
+    container.authRepository.ensureDefaultAdminSeeded()
+    container.authRepository.createUser("cashier1", "1234", UserRole.CASHIER)
+    container.authRepository.login("cashier1", "1234")
 }
 
 /** Minimal no-op fake — only [ActivationViewModel.installationId] is read by these tests, never persisted state. */

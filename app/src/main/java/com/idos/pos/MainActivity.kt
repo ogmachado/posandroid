@@ -5,16 +5,20 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +33,10 @@ import com.idos.pos.licensing.ActivationViewModel
 import com.idos.pos.licensing.LicenseStatus
 import com.idos.pos.licensing.licensed
 import com.idos.pos.permission.AuthGate
+import com.idos.pos.permission.AuthGateState
+import com.idos.pos.permission.AuthGateViewModel
+import com.idos.pos.permission.UserManagementScreen
+import com.idos.pos.permission.UserRole
 import kotlinx.coroutines.launch
 
 /**
@@ -59,6 +67,15 @@ import kotlinx.coroutines.launch
  * (Onboarding → Login → `PosNavHost`) — instead of calling `PosNavHost()`
  * directly. See that composable's class doc for the onboarding/login design.
  * The license-gate wiring above this composable is untouched.
+ *
+ * `android-pos-auth` Phase 4 (task 4.2; design.md Decision J) adds a slim
+ * ADMIN-only header action to `AppRoot()` that boolean-swaps the content slot
+ * to [com.idos.pos.permission.UserManagementScreen] instead of a 5th nav tab
+ * (`role-based-navigation` firmly fixes exactly 4 ADMIN tabs). `AppRoot()`
+ * reads the SAME [AuthGateViewModel] instance [AuthGate] uses internally
+ * (`posViewModel` caches by class per `ViewModelStoreOwner`, so no duplicate
+ * subscription is created) purely to derive the current session's role — it
+ * never drives gate state itself.
  */
 class MainActivity : ComponentActivity() {
 
@@ -136,19 +153,46 @@ fun EnforcementGate(
  * bottom-navigation shell wiring the real POS screens — see that composable's
  * class doc). Grace status never restricts POS functionality, only surfaces
  * the warning above it.
+ *
+ * **ADMIN-only user-management header action (task 4.2; Decision J)**: a slim
+ * header row above the content slot, rendered ONLY while
+ * [AuthGateState.Authenticated.role] is [UserRole.ADMIN] — never for a
+ * `CASHIER` session, and never during Onboarding/Login/Loading. Toggling it
+ * flips [showUserManagement], boolean-swapping the content slot to
+ * [UserManagementScreen] instead of [AuthGate]. The credential-change flow
+ * ("credential must be changeable") lives inside that screen, not here.
  */
 @Composable
 fun AppRoot(isInGracePeriod: Boolean = false) {
+    val authGateViewModel: AuthGateViewModel = posViewModel(LocalAppContainer.current)
+    val authGateState by authGateViewModel.authGateState.collectAsState()
+    val currentRole = (authGateState as? AuthGateState.Authenticated)?.role
+    var showUserManagement by remember { mutableStateOf(false) }
+
     Surface {
         Column(modifier = Modifier.fillMaxSize()) {
             if (isInGracePeriod) {
                 GracePeriodBanner()
             }
+            if (currentRole == UserRole.ADMIN) {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = { showUserManagement = !showUserManagement },
+                        modifier = Modifier.testTag(USER_MANAGEMENT_HEADER_BUTTON_TEST_TAG),
+                    ) {
+                        Text(if (showUserManagement) "Back to POS" else "Manage users")
+                    }
+                }
+            }
             Box(
                 modifier = Modifier.weight(1f).fillMaxWidth().testTag(APP_ROOT_CONTENT_TEST_TAG),
                 contentAlignment = Alignment.Center,
             ) {
-                AuthGate()
+                if (showUserManagement && currentRole == UserRole.ADMIN) {
+                    UserManagementScreen(onClose = { showUserManagement = false })
+                } else {
+                    AuthGate(viewModel = authGateViewModel)
+                }
             }
         }
     }
@@ -168,4 +212,5 @@ private fun GracePeriodBanner() {
 }
 
 const val GRACE_PERIOD_BANNER_TEST_TAG = "app-root-grace-period-banner"
+const val USER_MANAGEMENT_HEADER_BUTTON_TEST_TAG = "app-root-user-management-header-button"
 const val APP_ROOT_CONTENT_TEST_TAG = "app-root-content"
