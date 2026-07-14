@@ -33,6 +33,7 @@ import com.idos.pos.sales.CONFIRM_SALE_BUTTON_TEST_TAG
 import com.idos.pos.sales.SCAN_BUTTON_TEST_TAG
 import java.math.BigDecimal
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -128,7 +129,7 @@ class PosNavHostTest {
         container.database.close()
     }
 
-    private suspend fun waitUntil(timeoutMs: Long = 2_000, block: () -> Boolean) {
+    private suspend fun waitUntil(timeoutMs: Long = 2_000, block: suspend () -> Boolean) {
         withTimeout(timeoutMs) {
             while (!block()) {
                 shadowOf(Looper.getMainLooper()).idle()
@@ -174,6 +175,19 @@ class PosNavHostTest {
             composeTestRule.onNodeWithTag(SCAN_BUTTON_TEST_TAG).assertExists()
             composeTestRule.onNodeWithTag(CART_EMPTY_TEST_TAG).assertExists()
             composeTestRule.onNodeWithTag(OPENING_BALANCE_FIELD_TEST_TAG).assertDoesNotExist()
+
+            // PosScreen composes CashSessionViewModel.currentSession (a
+            // Room-backed StateFlow) and CurrencyConversionRows'
+            // activeCurrenciesFlow — both collected on a background
+            // dispatcher independent of shadowOf(Looper).idle() above. Wait
+            // for a direct suspend read against the same underlying table to
+            // resolve, giving that background collection machinery real
+            // wall-clock time to settle before @After's tearDown() closes the
+            // in-memory database — otherwise a still-in-flight Flow query can
+            // intermittently throw "Cannot perform this operation because the
+            // connection pool has been closed" (mirrors AuthGateTest's
+            // seed-write-before-close pattern).
+            waitUntil(timeoutMs = 5_000) { container.cashSessionRepository.currentSessionFlow().first() != null }
         }
     }
 
