@@ -17,6 +17,7 @@ import com.idos.pos.licensing.LicenseStateDao
 import com.idos.pos.licensing.LicenseStateEntity
 import com.idos.pos.licensing.LicenseStatus
 import com.idos.pos.licensing.LicenseVerifier
+import com.idos.pos.permission.AuthRepository
 import com.idos.pos.catalog.UnitMeasureEntity
 import java.math.BigDecimal
 import kotlinx.coroutines.runBlocking
@@ -81,6 +82,7 @@ class EnforcementGateTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val container = AppContainer.createInMemory(context)
         container.database.openHelper.writableDatabase // force onCreate/seed
+        seedBusinessProfileAndLogin(container)
 
         composeTestRule.setContent {
             CompositionLocalProvider(LocalAppContainer provides container) {
@@ -104,6 +106,7 @@ class EnforcementGateTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val container = AppContainer.createInMemory(context)
         container.database.openHelper.writableDatabase // force onCreate/seed
+        seedBusinessProfileAndLogin(container)
 
         composeTestRule.setContent {
             CompositionLocalProvider(LocalAppContainer provides container) {
@@ -200,6 +203,8 @@ class EnforcementGateTest {
             ).getOrThrow()
         }
 
+        seedBusinessProfileAndLogin(container)
+
         var licenseStatus by mutableStateOf(LicenseStatus.NOT_CONFIGURED)
 
         composeTestRule.setContent {
@@ -231,6 +236,22 @@ class EnforcementGateTest {
 
         container.database.close()
     }
+}
+
+/**
+ * `android-pos-auth` Phase 2 (task 2.5) inserted [com.idos.pos.permission.AuthGate]
+ * in front of [com.idos.pos.nav.PosNavHost] inside `AppRoot` — composing it
+ * with no business profile/session triggers `OnboardingScreen`'s
+ * `LaunchedEffect(Unit)` (`ensureDefaultAdminSeeded()`), an async coroutine
+ * this class's tests don't otherwise need. Pre-seeding a business profile +
+ * authenticated ADMIN session here makes `AuthGate` resolve straight to
+ * `Authenticated`, so no such background coroutine is left racing
+ * `container.database.close()` at the end of each test.
+ */
+private fun seedBusinessProfileAndLogin(container: AppContainer) = runBlocking {
+    container.businessProfileRepository.save("Acme", "123 Main St", "555-0100")
+    container.authRepository.ensureDefaultAdminSeeded()
+    container.authRepository.login(AuthRepository.DEFAULT_ADMIN_USERNAME, AuthRepository.DEFAULT_ADMIN_PIN)
 }
 
 /** Minimal no-op fake — only [ActivationViewModel.installationId] is read by these tests, never persisted state. */
