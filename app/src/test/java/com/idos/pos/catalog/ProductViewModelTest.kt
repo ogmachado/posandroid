@@ -8,6 +8,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.idos.pos.core.di.AppContainer
 import com.idos.pos.permission.PinGate
 import java.math.BigDecimal
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -96,7 +98,7 @@ class ProductViewModelTest {
 
     @Test
     fun submitUpdate_withChangedPrice_requiresPinGate_andPersistsOnlyAfterCorrectPin() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
 
         viewModel.submitUpdate(
             pinGate = pinGate,
@@ -125,7 +127,7 @@ class ProductViewModelTest {
 
     @Test
     fun submitUpdate_withChangedPrice_andIncorrectPin_leavesPriceUnchanged() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
 
         viewModel.submitUpdate(
             pinGate = pinGate,
@@ -150,7 +152,7 @@ class ProductViewModelTest {
 
     @Test
     fun submitUpdate_withUnchangedPrice_neverOpensTheGate_andPersistsDirectly() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
 
         viewModel.submitUpdate(
             pinGate = pinGate,
@@ -171,7 +173,7 @@ class ProductViewModelTest {
 
     @Test
     fun createProduct_isNeverPinGated() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
 
         viewModel.createProduct(
             name = "New Widget",

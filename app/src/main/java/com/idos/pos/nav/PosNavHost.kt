@@ -38,6 +38,7 @@ import com.idos.pos.inventory.InventoryListScreen
 import com.idos.pos.inventory.InventoryMovementFormScreen
 import com.idos.pos.inventory.InventoryViewModel
 import com.idos.pos.inventory.ProductStockView
+import com.idos.pos.permission.UserRole
 import com.idos.pos.permission.rememberPinGate
 import com.idos.pos.sales.PosScreen
 
@@ -119,11 +120,18 @@ import com.idos.pos.sales.PosScreen
  * would require per-tab nested graphs, which is a materially bigger change
  * than what was asked here and is called out as a known limitation rather
  * than silently assumed away.
+ *
+ * **Role-gated tabs (`android-pos-auth` Phase 3, Decision H)**: [role]
+ * determines which of [posTabs] the bottom bar renders — see
+ * [visibleTabsFor]. Tab visibility is a UX filter only; it is never a
+ * substitute for [com.idos.pos.permission.PinGate]'s action-level checks
+ * (`role-based-navigation` spec "Tab Visibility Does Not Replace
+ * Action-Level Gating").
  */
 @Composable
-fun PosNavHost() {
+fun PosNavHost(role: UserRole) {
     val navController = rememberNavController()
-    PosNavHost(navController = navController)
+    PosNavHost(navController = navController, role = role)
 }
 
 /**
@@ -136,7 +144,7 @@ fun PosNavHost() {
  * composable's own class doc).
  */
 @Composable
-internal fun PosNavHost(navController: NavHostController) {
+internal fun PosNavHost(navController: NavHostController, role: UserRole) {
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
             NavHost(navController = navController, startDestination = ROUTE_VENTA) {
@@ -168,7 +176,7 @@ internal fun PosNavHost(navController: NavHostController) {
                     // (double-decoding), confirmed empirically by
                     // `PosNavHostTest.navigatingToProductCreateRoute_withSpecialCharsInBarcode_roundTripsCorrectly`.
                     val barcode = backStackEntry.arguments?.getString(ARG_BARCODE).orEmpty()
-                    val pinGate = rememberPinGate(LocalAppContainer.current.pinRepository)
+                    val pinGate = rememberPinGate(LocalAppContainer.current.authRepository)
                     ProductFormScreen(
                         product = null,
                         pinGate = pinGate,
@@ -210,7 +218,7 @@ internal fun PosNavHost(navController: NavHostController) {
             }
         }
 
-        PosBottomNavigationBar(navController)
+        PosBottomNavigationBar(navController, role)
     }
 }
 
@@ -272,7 +280,7 @@ private fun ProductEditRoute(productId: Long, onSaved: () -> Unit) {
 
     val current = product
     if (loaded && current != null) {
-        val pinGate = rememberPinGate(LocalAppContainer.current.pinRepository)
+        val pinGate = rememberPinGate(LocalAppContainer.current.authRepository)
         ProductFormScreen(
             product = current,
             pinGate = pinGate,
@@ -296,7 +304,7 @@ private fun InventoryMovementRoute(productId: Long, onSaved: () -> Unit) {
 
     val current = stockView
     if (loaded && current != null) {
-        val pinGate = rememberPinGate(LocalAppContainer.current.pinRepository)
+        val pinGate = rememberPinGate(LocalAppContainer.current.authRepository)
         InventoryMovementFormScreen(
             product = current,
             pinGate = pinGate,
@@ -312,7 +320,8 @@ internal const val ROUTE_INVENTARIO = "inventario"
 internal const val ROUTE_CAJA = "caja"
 internal const val ROUTE_CAJA_CLOSE = "caja/close"
 
-private data class PosTab(val route: String, val label: String)
+/** Internal (not private) so [VisibleTabsForTest] can assert on the filtered shape by route/label. */
+internal data class PosTab(val route: String, val label: String)
 
 private val posTabs = listOf(
     PosTab(ROUTE_VENTA, "Venta"),
@@ -321,13 +330,27 @@ private val posTabs = listOf(
     PosTab(ROUTE_CAJA, "Caja"),
 )
 
+/**
+ * Filters [posTabs] by [role] (design.md Decision H, `role-based-navigation`
+ * spec): `CASHIER` sees exactly Venta/Caja; `ADMIN` sees all four, in the
+ * existing declared order. A plain `when` transform, not a stored
+ * per-role/tab permission — tab visibility derives fresh from the session's
+ * role at composition time every time (`role-based-navigation` "Tab
+ * Visibility Derives From Session Role At Composition Time").
+ */
+internal fun visibleTabsFor(role: UserRole): List<PosTab> = when (role) {
+    UserRole.CASHIER -> posTabs.filter { it.route == ROUTE_VENTA || it.route == ROUTE_CAJA }
+    UserRole.ADMIN -> posTabs
+}
+
 @Composable
-private fun PosBottomNavigationBar(navController: NavHostController) {
+private fun PosBottomNavigationBar(navController: NavHostController, role: UserRole) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val tabs = visibleTabsFor(role)
 
     NavigationBar(modifier = Modifier.testTag(BOTTOM_NAV_TEST_TAG)) {
-        posTabs.forEach { tab ->
+        tabs.forEach { tab ->
             NavigationBarItem(
                 selected = currentRoute == tab.route,
                 onClick = {

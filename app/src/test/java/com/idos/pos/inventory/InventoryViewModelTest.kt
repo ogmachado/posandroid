@@ -7,6 +7,8 @@ import com.idos.pos.core.di.AppContainer
 import com.idos.pos.core.domain.DomainError
 import com.idos.pos.permission.PinGate
 import java.math.BigDecimal
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -80,7 +82,7 @@ class InventoryViewModelTest {
 
     @Test
     fun recordMovement_withInType_neverOpensPinGate_andPersistsDirectly() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
 
         viewModel.recordMovement(pinGate, productId, MovementType.IN, 20, description = null)
 
@@ -91,7 +93,7 @@ class InventoryViewModelTest {
 
     @Test
     fun recordMovement_withOutType_neverOpensPinGate() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
         viewModel.recordMovement(pinGate, productId, MovementType.IN, 20, description = null)
         waitUntil { container.inventoryRepository.stockFlowValue(productId) == 20 }
         // InventoryViewModel.isSaving's guard (double-click regression fix)
@@ -113,7 +115,7 @@ class InventoryViewModelTest {
 
     @Test
     fun recordMovement_withAdjustType_requiresPinGate_andPersistsOnlyAfterCorrectPin() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
         viewModel.recordMovement(pinGate, productId, MovementType.IN, 15, description = null)
         waitUntil { container.inventoryRepository.stockFlowValue(productId) == 15 }
         waitUntil { !viewModel.isSaving.value }
@@ -132,7 +134,7 @@ class InventoryViewModelTest {
 
     @Test
     fun recordMovement_withAdjustType_andIncorrectPin_leavesStockUnchanged() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
         viewModel.recordMovement(pinGate, productId, MovementType.IN, 15, description = null)
         waitUntil { container.inventoryRepository.stockFlowValue(productId) == 15 }
         waitUntil { !viewModel.isSaving.value }
@@ -149,7 +151,7 @@ class InventoryViewModelTest {
 
     @Test
     fun setMinimumStock_neverOpensPinGate_andPersistsDirectly() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
 
         viewModel.setMinimumStock(productId, 5)
 
@@ -169,7 +171,7 @@ class InventoryViewModelTest {
      */
     @Test
     fun recordMovement_calledTwiceInQuickSuccession_secondCallIsANoOp() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
 
         viewModel.recordMovement(pinGate, productId, MovementType.IN, 20, description = null)
         viewModel.recordMovement(pinGate, productId, MovementType.IN, 20, description = null)

@@ -74,6 +74,17 @@ class AuthGateTest {
 
         composeTestRule.onNodeWithTag(ONBOARDING_NAME_FIELD_TEST_TAG).assertExists()
         composeTestRule.onNodeWithTag(BOTTOM_NAV_TEST_TAG).assertDoesNotExist()
+
+        // OnboardingScreen's LaunchedEffect(Unit) fires ensureDefaultAdminSeeded()
+        // on first composition (same as OnboardingScreenTest). Wait for that
+        // write to actually land before @After's tearDown() closes the
+        // in-memory database — otherwise the seed coroutine can still be
+        // mid-write when close() runs, intermittently surfacing as a
+        // CloseGuard "Explicit termination method 'close' not called" warning
+        // (no assertion failure, but a real teardown race). Generous timeout:
+        // PBKDF2 (120k iterations, PinHasher) pays a one-time JVM/crypto-provider
+        // warm-up cost the first time it runs in a fresh test JVM.
+        waitUntil(timeoutMs = 10_000) { container.database.userDao().count() > 0 }
     }
 
     // --- Requirement (login-gate): Unauthenticated session shows the login screen, not the POS shell ---

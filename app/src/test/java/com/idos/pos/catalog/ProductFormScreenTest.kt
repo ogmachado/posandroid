@@ -10,6 +10,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.idos.pos.core.di.AppContainer
 import com.idos.pos.permission.PinGate
 import java.math.BigDecimal
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -107,7 +109,7 @@ class ProductFormScreenTest {
 
     @Test
     fun changingPrice_andSaving_opensPinGate_withoutPersisting() {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
 
         composeTestRule.setContent {
             ProductFormScreen(product = existingProduct, pinGate = pinGate, onSaved = {}, viewModel = viewModel)
@@ -128,7 +130,7 @@ class ProductFormScreenTest {
 
     @Test
     fun changingOnlyName_savesDirectly_withoutOpeningPinGate() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
 
         composeTestRule.setContent {
             ProductFormScreen(product = existingProduct, pinGate = pinGate, onSaved = {}, viewModel = viewModel)

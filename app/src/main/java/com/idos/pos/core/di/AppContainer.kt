@@ -25,7 +25,6 @@ import com.idos.pos.licensing.LicenseRepository
 import com.idos.pos.licensing.LicenseStateDao
 import com.idos.pos.licensing.LicenseVerifier
 import com.idos.pos.permission.AuthRepository
-import com.idos.pos.permission.PinRepository
 import com.idos.pos.permission.UserDao
 import com.idos.pos.sales.PaymentMethodDao
 import com.idos.pos.sales.SalesDao
@@ -37,8 +36,8 @@ import com.idos.pos.sales.SalesRepository
  * and held for the app's lifetime; exposed to Compose through [LocalAppContainer].
  *
  * Repository slots are filled in per capability phase — Phases 1-3 expose the
- * seeded-catalog DAOs directly (no repository layer exists for them yet) plus
- * [PinRepository]. Phase 4 (task 4.7) added [productDao]/[catalogRepository].
+ * seeded-catalog DAOs directly (no repository layer exists for them yet).
+ * Phase 4 (task 4.7) added [productDao]/[catalogRepository].
  * Phase 5 (task 5.6) added [inventoryDao]/[inventoryRepository] — [catalogRepository]
  * now depends on [inventoryRepository] to seed a zero-stock row on product
  * creation (closes `CatalogRepository.createProduct`'s former Phase 4 TODO).
@@ -73,7 +72,6 @@ class AppContainer private constructor(
     val userDao: UserDao get() = database.userDao()
     val businessProfileDao: BusinessProfileDao get() = database.businessProfileDao()
 
-    val pinRepository: PinRepository = PinRepository(context)
     val authRepository: AuthRepository by lazy { AuthRepository(userDao, context) }
     val businessProfileRepository: BusinessProfileRepository by lazy { BusinessProfileRepository(businessProfileDao) }
     val inventoryRepository: InventoryRepository by lazy { InventoryRepository(inventoryDao) }

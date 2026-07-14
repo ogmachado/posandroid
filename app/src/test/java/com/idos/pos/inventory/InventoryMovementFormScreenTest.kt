@@ -11,6 +11,8 @@ import com.idos.pos.catalog.UnitMeasureEntity
 import com.idos.pos.core.di.AppContainer
 import com.idos.pos.permission.PinGate
 import java.math.BigDecimal
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -88,7 +90,7 @@ class InventoryMovementFormScreenTest {
 
     @Test
     fun submittingInMovement_persistsDirectly_withoutOpeningPinGate() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
         val product = ProductStockView(productId, "Widget", "SKU-800", stock = 0, minimumStock = 0)
 
         composeTestRule.setContent {
@@ -106,7 +108,7 @@ class InventoryMovementFormScreenTest {
 
     @Test
     fun selectingAdjust_andSubmitting_opensPinGate_withoutPersisting() {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
         val product = ProductStockView(productId, "Widget", "SKU-800", stock = 0, minimumStock = 0)
 
         composeTestRule.setContent {
@@ -128,7 +130,7 @@ class InventoryMovementFormScreenTest {
 
     @Test
     fun savingMinimumStock_persistsDirectly_withoutOpeningPinGate() = runBlocking {
-        val pinGate = PinGate(verifyPin = { it == correctPin })
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
         val product = ProductStockView(productId, "Widget", "SKU-800", stock = 0, minimumStock = 0)
 
         composeTestRule.setContent {

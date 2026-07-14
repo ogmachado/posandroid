@@ -27,6 +27,7 @@ import com.idos.pos.core.di.LocalAppContainer
 import com.idos.pos.inventory.INVENTORY_LIST_TEST_TAG
 import com.idos.pos.inventory.QUANTITY_FIELD_TEST_TAG
 import com.idos.pos.inventory.inventoryListItemTestTag
+import com.idos.pos.permission.UserRole
 import com.idos.pos.sales.CART_EMPTY_TEST_TAG
 import com.idos.pos.sales.CONFIRM_SALE_BUTTON_TEST_TAG
 import com.idos.pos.sales.SCAN_BUTTON_TEST_TAG
@@ -136,10 +137,18 @@ class PosNavHostTest {
         }
     }
 
+    /**
+     * Renders as `UserRole.ADMIN` (`android-pos-auth` Phase 3 task 3.4's
+     * `role` parameter) — this class drives Productos/Inventario tab clicks
+     * directly, both ADMIN-only per `role-based-navigation`'s `visibleTabsFor`
+     * filtering, and none of this shell-navigation-focused suite's scenarios
+     * are about role-based tab visibility itself (that is
+     * [VisibleTabsForTest]'s job).
+     */
     private fun setNavHostContent() {
         composeTestRule.setContent {
             CompositionLocalProvider(LocalAppContainer provides container) {
-                PosNavHost(navController = navController)
+                PosNavHost(navController = navController, role = UserRole.ADMIN)
             }
         }
     }

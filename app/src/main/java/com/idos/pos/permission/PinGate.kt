@@ -4,12 +4,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.idos.pos.core.domain.DomainError
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Reusable manager-PIN gate wrapping any sensitive action — product price edits
- * and `ADJUST` inventory movements in Slice A (see specs/permission-gate/spec.md).
+ * and `ADJUST` inventory movements (see specs/permission-gate/spec.md).
  *
  * Usage: `pinGate.require { performEdit() }`. The gate shows [PinGateDialog] and
  * invokes the lambda ONLY on a correct PIN; on an incorrect PIN it surfaces
@@ -20,11 +23,24 @@ import com.idos.pos.core.domain.DomainError
  * action (specs/permission-gate/spec.md "PIN Verification Is a Point-in-Time
  * Check"). There is deliberately no "remember for N minutes" convenience here.
  *
- * Depends on a `verifyPin` function rather than [PinRepository] directly so this
+ * Depends on a `verifyPin` function rather than a concrete repository so this
  * class (and [PinGateDialog]) stay unit-testable without touching Android
  * Keystore/EncryptedSharedPreferences (see [PinHasher] doc for why).
+ *
+ * **Suspend verifier (design.md Decision G, `android-pos-auth` Phase 3)**:
+ * [verifyPin] is `suspend` because the credential now lives in Room
+ * ([AuthRepository.verifyAdminPin] queries every `ADMIN`-role row on the
+ * calling coroutine) — a synchronous main-thread DAO read is forbidden in
+ * production. [submit] launches the check in [scope] rather than blocking;
+ * the retired single-secret [com.idos.pos.permission.PinHasher]-only lookup
+ * this class used before Phase 3 was synchronous only because the old
+ * standalone PIN store (the now-deleted `PinRepository`) was a plain
+ * EncryptedSharedPreferences read.
  */
-class PinGate(private val verifyPin: (String) -> Boolean) {
+class PinGate(
+    private val verifyPin: suspend (String) -> Boolean,
+    private val scope: CoroutineScope,
+) {
 
     var isVisible: Boolean by mutableStateOf(false)
         private set
@@ -52,16 +68,22 @@ class PinGate(private val verifyPin: (String) -> Boolean) {
         isVisible = true
     }
 
-    /** Called by [PinGateDialog] when the operator submits a PIN attempt. */
+    /**
+     * Called by [PinGateDialog] when the operator submits a PIN attempt.
+     * Launches the (now suspend) [verifyPin] check in [scope] — never blocks
+     * the caller.
+     */
     fun submit(pin: String) {
         val action = pendingAction ?: return
-        if (verifyPin(pin)) {
-            lastError = null
-            isVisible = false
-            pendingAction = null
-            action()
-        } else {
-            lastError = DomainError.PinIncorrect
+        scope.launch {
+            if (verifyPin(pin)) {
+                lastError = null
+                isVisible = false
+                pendingAction = null
+                action()
+            } else {
+                lastError = DomainError.PinIncorrect
+            }
         }
     }
 
@@ -72,6 +94,15 @@ class PinGate(private val verifyPin: (String) -> Boolean) {
     }
 }
 
+/**
+ * Wires [AuthRepository.verifyAdminPin] as the gate's suspend verifier
+ * (design.md Decision G) — replaces the retired
+ * `rememberPinGate(pinRepository: PinRepository)` overload. `scope` is a
+ * fresh [rememberCoroutineScope], matching the same idiom
+ * [OnboardingScreen] already uses for its own suspend calls.
+ */
 @Composable
-fun rememberPinGate(pinRepository: PinRepository): PinGate =
-    remember(pinRepository) { PinGate(pinRepository::verify) }
+fun rememberPinGate(authRepository: AuthRepository): PinGate {
+    val scope = rememberCoroutineScope()
+    return remember(authRepository) { PinGate(verifyPin = authRepository::verifyAdminPin, scope = scope) }
+}
