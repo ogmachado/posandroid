@@ -99,7 +99,7 @@ class PinGate(
  * (design.md Decision G) — replaces the retired
  * `rememberPinGate(pinRepository: PinRepository)` overload. `scope` is a
  * fresh [rememberCoroutineScope], matching the same idiom
- * [OnboardingScreen] already uses for its own suspend calls.
+ * [BusinessProfileScreen] already uses for its own suspend calls.
  */
 @Composable
 fun rememberPinGate(authRepository: AuthRepository): PinGate {

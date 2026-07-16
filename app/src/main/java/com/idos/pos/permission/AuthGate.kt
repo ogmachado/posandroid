@@ -8,10 +8,19 @@ import com.idos.pos.core.di.posViewModel
 import com.idos.pos.nav.PosNavHost
 
 /**
- * 3-way onboarding/login/authenticated gate (design.md Decision E), slotted
- * inside `AppRoot()` in place of the direct `PosNavHost()` call — the same
- * boolean/state-composable-swap idiom [com.idos.pos.EnforcementGate] already
- * uses for the license gate above this one.
+ * 2-way login/authenticated gate, slotted inside `AppRoot()` in place of the
+ * direct `PosNavHost()` call — the same boolean/state-composable-swap idiom
+ * [com.idos.pos.EnforcementGate] already uses for the license gate above this
+ * one.
+ *
+ * `android-pos-auth-login-first` (task 1.3; design.md "Decision:
+ * `recompute()` becomes non-suspend; constructor drops one param") removes
+ * the `Onboarding` branch: login is always the first screen reachable once
+ * the license check passes — see `login-gate`'s amended "Gate Sits Inside
+ * AppRoot, After License, Before PosNavHost". Business-profile setup is now a
+ * post-login ADMIN action reached from `AppRoot()`'s header
+ * ([com.idos.pos.permission.BusinessProfileScreen]), not rendered by this gate
+ * at all.
  *
  * **`Authenticated(role) -> PosNavHost(role)`** (design.md Decision E/H):
  * `android-pos-auth` Phase 3 task 3.4 added the `role`-aware
@@ -25,7 +34,6 @@ fun AuthGate(viewModel: AuthGateViewModel = posViewModel(LocalAppContainer.curre
 
     when (val current = state) {
         AuthGateState.Loading -> Unit
-        AuthGateState.Onboarding -> OnboardingScreen(onComplete = viewModel::onOnboardingCompleted)
         AuthGateState.Login -> LoginScreen()
         is AuthGateState.Authenticated -> PosNavHost(current.role)
     }

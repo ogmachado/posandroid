@@ -35,6 +35,7 @@ import com.idos.pos.licensing.licensed
 import com.idos.pos.permission.AuthGate
 import com.idos.pos.permission.AuthGateState
 import com.idos.pos.permission.AuthGateViewModel
+import com.idos.pos.permission.BusinessProfileScreen
 import com.idos.pos.permission.UserManagementScreen
 import com.idos.pos.permission.UserRole
 import kotlinx.coroutines.launch
@@ -61,21 +62,26 @@ import kotlinx.coroutines.launch
  * was closed by a later, separate piece of work: `AppRoot()`'s content slot
  * rendered [com.idos.pos.nav.PosNavHost] directly — a 4-tab bottom-navigation
  * shell (Venta/Productos/Inventario/Caja) — instead of [BootstrapPlaceholder].
- * `android-pos-auth` Phase 2 (task 2.5; design.md Decision E) inserts the
- * identity gate stack in front of that shell: `AppRoot()`'s content slot now
- * renders [com.idos.pos.permission.AuthGate] — a nested `when` swap
- * (Onboarding → Login → `PosNavHost`) — instead of calling `PosNavHost()`
- * directly. See that composable's class doc for the onboarding/login design.
- * The license-gate wiring above this composable is untouched.
+ * `android-pos-auth` Phase 2 (task 2.5; design.md Decision E) inserted the
+ * identity gate stack in front of that shell: `AppRoot()`'s content slot
+ * renders [com.idos.pos.permission.AuthGate] — a `when` swap (`Login` →
+ * `PosNavHost`) — instead of calling `PosNavHost()` directly. See that
+ * composable's class doc for the login/authenticated design. The license-gate
+ * wiring above this composable is untouched.
  *
  * `android-pos-auth` Phase 4 (task 4.2; design.md Decision J) adds a slim
  * ADMIN-only header action to `AppRoot()` that boolean-swaps the content slot
  * to [com.idos.pos.permission.UserManagementScreen] instead of a 5th nav tab
- * (`role-based-navigation` firmly fixes exactly 4 ADMIN tabs). `AppRoot()`
- * reads the SAME [AuthGateViewModel] instance [AuthGate] uses internally
- * (`posViewModel` caches by class per `ViewModelStoreOwner`, so no duplicate
- * subscription is created) purely to derive the current session's role — it
- * never drives gate state itself.
+ * (`role-based-navigation` firmly fixes exactly 4 ADMIN tabs). `android-pos-auth-login-first`
+ * (task 1.5) adds a second, mutually-exclusive ADMIN-only header action that
+ * boolean-swaps to [com.idos.pos.permission.BusinessProfileScreen] instead —
+ * business-profile setup is now a normal post-login ADMIN action, not a
+ * pre-login onboarding step (`AuthGateState.Onboarding` is gone entirely; see
+ * [AuthGateViewModel]'s class doc). `AppRoot()` reads the SAME
+ * [AuthGateViewModel] instance [AuthGate] uses internally (`posViewModel`
+ * caches by class per `ViewModelStoreOwner`, so no duplicate subscription is
+ * created) purely to derive the current session's role — it never drives
+ * gate state itself.
  */
 class MainActivity : ComponentActivity() {
 
@@ -157,10 +163,21 @@ fun EnforcementGate(
  * **ADMIN-only user-management header action (task 4.2; Decision J)**: a slim
  * header row above the content slot, rendered ONLY while
  * [AuthGateState.Authenticated.role] is [UserRole.ADMIN] — never for a
- * `CASHIER` session, and never during Onboarding/Login/Loading. Toggling it
- * flips [showUserManagement], boolean-swapping the content slot to
- * [UserManagementScreen] instead of [AuthGate]. The credential-change flow
- * ("credential must be changeable") lives inside that screen, not here.
+ * `CASHIER` session, and never during Login/Loading. Toggling it flips
+ * [showUserManagement] (clearing [showBusinessProfile]), boolean-swapping the
+ * content slot to [UserManagementScreen] instead of [AuthGate]. The
+ * credential-change flow ("credential must be changeable") lives inside that
+ * screen, not here.
+ *
+ * **ADMIN-only business-profile header action (`android-pos-auth-login-first`
+ * task 1.5; design.md "Decision: Two header buttons, mutually exclusive")**: a
+ * second button in the same header row, alongside "Manage users", toggling
+ * [showBusinessProfile] (clearing [showUserManagement]) — the two are
+ * mutually exclusive, so only one overlay content can be showing at a time.
+ * Boolean-swaps the content slot to [BusinessProfileScreen] instead of
+ * [AuthGate]; reachability is enforced by this ADMIN-only header, mirroring
+ * [UserManagementScreen]'s pattern (the screen itself contains no role
+ * check).
  */
 @Composable
 fun AppRoot(isInGracePeriod: Boolean = false) {
@@ -168,6 +185,7 @@ fun AppRoot(isInGracePeriod: Boolean = false) {
     val authGateState by authGateViewModel.authGateState.collectAsState()
     val currentRole = (authGateState as? AuthGateState.Authenticated)?.role
     var showUserManagement by remember { mutableStateOf(false) }
+    var showBusinessProfile by remember { mutableStateOf(false) }
 
     Surface {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -177,10 +195,22 @@ fun AppRoot(isInGracePeriod: Boolean = false) {
             if (currentRole == UserRole.ADMIN) {
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Button(
-                        onClick = { showUserManagement = !showUserManagement },
+                        onClick = {
+                            showUserManagement = !showUserManagement
+                            showBusinessProfile = false
+                        },
                         modifier = Modifier.testTag(USER_MANAGEMENT_HEADER_BUTTON_TEST_TAG),
                     ) {
                         Text(if (showUserManagement) "Back to POS" else "Manage users")
+                    }
+                    Button(
+                        onClick = {
+                            showBusinessProfile = !showBusinessProfile
+                            showUserManagement = false
+                        },
+                        modifier = Modifier.testTag(BUSINESS_PROFILE_HEADER_BUTTON_TEST_TAG),
+                    ) {
+                        Text(if (showBusinessProfile) "Back to POS" else "Business profile")
                     }
                 }
             }
@@ -188,10 +218,12 @@ fun AppRoot(isInGracePeriod: Boolean = false) {
                 modifier = Modifier.weight(1f).fillMaxWidth().testTag(APP_ROOT_CONTENT_TEST_TAG),
                 contentAlignment = Alignment.Center,
             ) {
-                if (showUserManagement && currentRole == UserRole.ADMIN) {
-                    UserManagementScreen(onClose = { showUserManagement = false })
-                } else {
-                    AuthGate(viewModel = authGateViewModel)
+                when {
+                    showUserManagement && currentRole == UserRole.ADMIN ->
+                        UserManagementScreen(onClose = { showUserManagement = false })
+                    showBusinessProfile && currentRole == UserRole.ADMIN ->
+                        BusinessProfileScreen(onClose = { showBusinessProfile = false })
+                    else -> AuthGate(viewModel = authGateViewModel)
                 }
             }
         }
@@ -213,4 +245,5 @@ private fun GracePeriodBanner() {
 
 const val GRACE_PERIOD_BANNER_TEST_TAG = "app-root-grace-period-banner"
 const val USER_MANAGEMENT_HEADER_BUTTON_TEST_TAG = "app-root-user-management-header-button"
+const val BUSINESS_PROFILE_HEADER_BUTTON_TEST_TAG = "app-root-business-profile-header-button"
 const val APP_ROOT_CONTENT_TEST_TAG = "app-root-content"

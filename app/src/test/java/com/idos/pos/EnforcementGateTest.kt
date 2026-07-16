@@ -84,7 +84,7 @@ class EnforcementGateTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val container = AppContainer.createInMemory(context)
         container.database.openHelper.writableDatabase // force onCreate/seed
-        seedBusinessProfileAndLogin(container)
+        seedAdminAndLogin(container)
 
         composeTestRule.setContent {
             CompositionLocalProvider(LocalAppContainer provides container) {
@@ -108,7 +108,7 @@ class EnforcementGateTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val container = AppContainer.createInMemory(context)
         container.database.openHelper.writableDatabase // force onCreate/seed
-        seedBusinessProfileAndLogin(container)
+        seedAdminAndLogin(container)
 
         composeTestRule.setContent {
             CompositionLocalProvider(LocalAppContainer provides container) {
@@ -185,7 +185,7 @@ class EnforcementGateTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val container = AppContainer.createInMemory(context)
         container.database.openHelper.writableDatabase // force onCreate/seed
-        seedBusinessProfileAndLoginAsCashier(container)
+        seedCashierAndLogin(container)
 
         composeTestRule.setContent {
             CompositionLocalProvider(LocalAppContainer provides container) {
@@ -208,7 +208,7 @@ class EnforcementGateTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val container = AppContainer.createInMemory(context)
         container.database.openHelper.writableDatabase // force onCreate/seed
-        seedBusinessProfileAndLogin(container)
+        seedAdminAndLogin(container)
 
         composeTestRule.setContent {
             CompositionLocalProvider(LocalAppContainer provides container) {
@@ -262,7 +262,7 @@ class EnforcementGateTest {
             ).getOrThrow()
         }
 
-        seedBusinessProfileAndLogin(container)
+        seedAdminAndLogin(container)
 
         var licenseStatus by mutableStateOf(LicenseStatus.NOT_CONFIGURED)
 
@@ -299,27 +299,27 @@ class EnforcementGateTest {
 
 /**
  * `android-pos-auth` Phase 2 (task 2.5) inserted [com.idos.pos.permission.AuthGate]
- * in front of [com.idos.pos.nav.PosNavHost] inside `AppRoot` — composing it
- * with no business profile/session triggers `OnboardingScreen`'s
- * `LaunchedEffect(Unit)` (`ensureDefaultAdminSeeded()`), an async coroutine
- * this class's tests don't otherwise need. Pre-seeding a business profile +
- * authenticated ADMIN session here makes `AuthGate` resolve straight to
- * `Authenticated`, so no such background coroutine is left racing
- * `container.database.close()` at the end of each test.
+ * in front of [com.idos.pos.nav.PosNavHost] inside `AppRoot`.
+ * `android-pos-auth-login-first` (task 2.3) drops the vestigial
+ * `businessProfileRepository.save(...)` call — business-profile existence no
+ * longer affects gate reachability (`login-gate`'s amended "Gate Sits Inside
+ * AppRoot, After License, Before PosNavHost"). Explicit seeding+login is still
+ * required here because [AppContainer.createInMemory] bypasses
+ * [com.idos.pos.PosApplication.onCreate]'s new unconditional
+ * `ensureDefaultAdminSeeded()` call (task 1.1) — without it, `AuthGate` would
+ * resolve to `Login` instead of `Authenticated`.
  */
-private fun seedBusinessProfileAndLogin(container: AppContainer) = runBlocking {
-    container.businessProfileRepository.save("Acme", "123 Main St", "555-0100")
+private fun seedAdminAndLogin(container: AppContainer) = runBlocking {
     container.authRepository.ensureDefaultAdminSeeded()
     container.authRepository.login(AuthRepository.DEFAULT_ADMIN_USERNAME, AuthRepository.DEFAULT_ADMIN_PIN)
 }
 
 /**
  * `android-pos-auth` Phase 4 (task 4.2) — a CASHIER-authenticated variant of
- * [seedBusinessProfileAndLogin], used to verify the ADMIN-only
- * user-management header action stays unreachable for a CASHIER session.
+ * [seedAdminAndLogin], used to verify the ADMIN-only user-management header
+ * action stays unreachable for a CASHIER session.
  */
-private fun seedBusinessProfileAndLoginAsCashier(container: AppContainer) = runBlocking {
-    container.businessProfileRepository.save("Acme", "123 Main St", "555-0100")
+private fun seedCashierAndLogin(container: AppContainer) = runBlocking {
     container.authRepository.ensureDefaultAdminSeeded()
     container.authRepository.createUser("cashier1", "1234", UserRole.CASHIER)
     container.authRepository.login("cashier1", "1234")

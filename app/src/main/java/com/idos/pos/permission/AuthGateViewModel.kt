@@ -2,7 +2,6 @@ package com.idos.pos.permission
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.idos.pos.business.BusinessProfileRepository
 import com.idos.pos.core.di.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -10,38 +9,45 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Gate state derived by [AuthGateViewModel] (design.md "Gate stack & session
- * flow" / Decision E). [Loading] covers the brief window before the initial
- * business-profile existence check resolves — [AuthGate] renders nothing for
- * it, avoiding a flash of the wrong screen before the real answer is known.
+ * Gate state derived by [AuthGateViewModel]. [Loading] covers the brief
+ * window before [AuthRepository.currentSession]'s first value has been
+ * collected — [AuthGate] renders nothing for it, avoiding a flash of the
+ * wrong screen before the real answer is known.
+ *
+ * `android-pos-auth-login-first` (task 1.2; design.md "Decision: `recompute()`
+ * becomes non-suspend; constructor drops one param") removes the `Onboarding`
+ * state entirely — see `login-gate`'s amended "Gate Sits Inside AppRoot,
+ * After License, Before PosNavHost" (no onboarding step). The gate is now
+ * exactly `Loading | Login | Authenticated`.
  */
 sealed interface AuthGateState {
     data object Loading : AuthGateState
-    data object Onboarding : AuthGateState
     data object Login : AuthGateState
     data class Authenticated(val role: UserRole) : AuthGateState
 }
 
 /**
- * Derives [AuthGateState] from [BusinessProfileRepository.exists] and
- * [AuthRepository.currentSession] (design.md — "`AuthGateViewModel` ...
- * derives `AuthGateState` from two sources"). Excluded from strict TDD
- * (ViewModel classes, per `openspec/config.yaml` `strict_tdd_scope.exclude`) —
- * covered alongside by `AuthGateTest`.
+ * Derives [AuthGateState] from [AuthRepository.currentSession] alone.
+ * Excluded from strict TDD (ViewModel classes, per `openspec/config.yaml`
+ * `strict_tdd_scope.exclude`) — covered alongside by `AuthGateTest`.
  *
  * Reactive on [AuthRepository.currentSession] (a `StateFlow`, so a
- * login/session change automatically re-derives state); the business-profile
- * existence check is NOT itself a `StateFlow`-backed value
- * ([BusinessProfileRepository.exists] is a one-shot suspend query), so
- * [onOnboardingCompleted] must be called explicitly once onboarding finishes
- * persisting the profile — nothing else would ever trigger a re-check.
+ * login/session change automatically re-derives state) — `recompute()` is a
+ * plain, non-suspend function since business-profile existence is no longer
+ * part of the derivation (`android-pos-auth-login-first` task 1.2; design.md
+ * "Decision: `recompute()` becomes non-suspend; constructor drops one
+ * param"). This is a reversal of `android-pos-auth` Decision E, which
+ * previously gated login behind [com.idos.pos.business.BusinessProfileRepository.exists];
+ * that dependency and its `onOnboardingCompleted()` refresh hook are removed
+ * — see `first-run-onboarding`'s amended "Default ADMIN Is Auto-Seeded
+ * Unconditionally At Process Start" for where seeding now happens instead
+ * ([com.idos.pos.PosApplication.onCreate]).
  */
 class AuthGateViewModel(
     private val authRepository: AuthRepository,
-    private val businessProfileRepository: BusinessProfileRepository,
 ) : ViewModel() {
 
-    constructor(container: AppContainer) : this(container.authRepository, container.businessProfileRepository)
+    constructor(container: AppContainer) : this(container.authRepository)
 
     private val _authGateState = MutableStateFlow<AuthGateState>(AuthGateState.Loading)
     val authGateState: StateFlow<AuthGateState> = _authGateState.asStateFlow()
@@ -52,20 +58,9 @@ class AuthGateViewModel(
         }
     }
 
-    /**
-     * Re-checks business-profile existence — called by [AuthGate] after
-     * [OnboardingScreen] reports its save completed (design.md
-     * "Onboarding → OnboardingScreen(onComplete = refresh)").
-     */
-    fun onOnboardingCompleted() {
-        viewModelScope.launch { recompute(authRepository.currentSession.value) }
-    }
-
-    private suspend fun recompute(session: AuthSession?) {
-        _authGateState.value = when {
-            !businessProfileRepository.exists() -> AuthGateState.Onboarding
-            session == null -> AuthGateState.Login
-            else -> AuthGateState.Authenticated(session.role)
-        }
+    private fun recompute(session: AuthSession?) {
+        _authGateState.value =
+            if (session == null) AuthGateState.Login
+            else AuthGateState.Authenticated(session.role)
     }
 }

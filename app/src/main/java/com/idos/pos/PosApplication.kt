@@ -29,6 +29,22 @@ import kotlinx.coroutines.runBlocking
  * dispatch off the calling thread internally, so this does not violate
  * `Cannot access database on the main thread` even though the production
  * database is not built with `allowMainThreadQueries()`.
+ *
+ * `android-pos-auth-login-first` (task 1.1; design.md "Decision: Seed at
+ * `onCreate` via `runBlocking`, before the license read") adds an
+ * unconditional default-ADMIN seed call here — the `CommandLineRunner`
+ * equivalent of this app's reference backend (`SecurityBootstrap`), per
+ * `first-run-onboarding`'s amended "Default ADMIN Is Auto-Seeded
+ * Unconditionally At Process Start". This replaces the previous
+ * `OnboardingScreen`-scoped `LaunchedEffect` seed call (retired along with the
+ * `Onboarding` gate state — see [com.idos.pos.permission.AuthGateViewModel]'s
+ * class doc). [com.idos.pos.permission.AuthRepository.ensureDefaultAdminSeeded]
+ * is already idempotent
+ * (`userDao.count() > 0` guard), so every boot after the first returns
+ * immediately; the seed runs before [initialLicenseStatus] so it always lands
+ * before [MainActivity]/`AuthGateViewModel.init` ever subscribe to
+ * `currentSession` — no race, the login screen's user-picker always sees the
+ * admin row on its first composition.
  */
 class PosApplication : Application() {
     lateinit var appContainer: AppContainer
@@ -38,6 +54,7 @@ class PosApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         appContainer = AppContainer.create(this)
+        runBlocking { appContainer.authRepository.ensureDefaultAdminSeeded() }
         initialLicenseStatus = runBlocking { appContainer.licenseRepository.currentStatus() }
     }
 }

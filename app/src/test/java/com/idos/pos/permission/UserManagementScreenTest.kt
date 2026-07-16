@@ -35,8 +35,8 @@ import org.robolectric.annotation.Config
  * (see [UserManagementViewModel]'s class doc); that scenario is covered at
  * the `AppRoot`/header-action level by
  * [com.idos.pos.EnforcementGateTest.cashierSession_hasNoUserManagementHeaderAction],
- * mirroring how [OnboardingScreenTest] defers its own cross-cutting scenario
- * to [AuthGateTest].
+ * mirroring how [BusinessProfileScreenTest] defers its own cross-cutting
+ * scenario to [AuthGateTest].
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w360dp-h640dp")

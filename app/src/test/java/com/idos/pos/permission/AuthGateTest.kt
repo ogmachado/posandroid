@@ -26,9 +26,18 @@ import org.robolectric.annotation.Config
  * excluded from strict TDD per `openspec/config.yaml` `strict_tdd_scope` —
  * design.md Testing Strategy "Alongside (Compose)"). Exercises the real
  * [AuthGate] wired to a real [AppContainer.createInMemory] so
- * onboarding/login/authenticated derivation is driven by the actual
- * [AuthRepository] / [com.idos.pos.business.BusinessProfileRepository], not
- * fakes — mirrors [com.idos.pos.EnforcementGateTest]'s real-container pattern.
+ * login/authenticated derivation is driven by the actual [AuthRepository],
+ * not a fake — mirrors [com.idos.pos.EnforcementGateTest]'s real-container
+ * pattern.
+ *
+ * `android-pos-auth-login-first` (task 2.1) drops the `Onboarding` scenario
+ * entirely (`AuthGateState.Onboarding` no longer exists) and the
+ * `businessProfileRepository.save(...)` preconditions from the remaining
+ * tests — gate reachability no longer depends on business-profile existence
+ * (`login-gate`'s amended "Gate Sits Inside AppRoot, After License, Before
+ * PosNavHost"). `AppContainer.createInMemory()` bypasses
+ * [com.idos.pos.PosApplication.onCreate]'s new unconditional seed call, so
+ * each test still seeds explicitly via `ensureDefaultAdminSeeded()`.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w360dp-h640dp")
@@ -60,38 +69,10 @@ class AuthGateTest {
         }
     }
 
-    // --- Requirement (first-run-onboarding): Onboarding Blocks Access Until Complete ---
-
-    @Test
-    fun noBusinessProfile_showsOnboarding_posShellUnreachable() = runBlocking {
-        composeTestRule.setContent {
-            CompositionLocalProvider(LocalAppContainer provides container) {
-                AuthGate()
-            }
-        }
-
-        waitUntil { composeTestRule.onAllNodesWithTag(ONBOARDING_NAME_FIELD_TEST_TAG).fetchSemanticsNodes().isNotEmpty() }
-
-        composeTestRule.onNodeWithTag(ONBOARDING_NAME_FIELD_TEST_TAG).assertExists()
-        composeTestRule.onNodeWithTag(BOTTOM_NAV_TEST_TAG).assertDoesNotExist()
-
-        // OnboardingScreen's LaunchedEffect(Unit) fires ensureDefaultAdminSeeded()
-        // on first composition (same as OnboardingScreenTest). Wait for that
-        // write to actually land before @After's tearDown() closes the
-        // in-memory database — otherwise the seed coroutine can still be
-        // mid-write when close() runs, intermittently surfacing as a
-        // CloseGuard "Explicit termination method 'close' not called" warning
-        // (no assertion failure, but a real teardown race). Generous timeout:
-        // PBKDF2 (120k iterations, PinHasher) pays a one-time JVM/crypto-provider
-        // warm-up cost the first time it runs in a fresh test JVM.
-        waitUntil(timeoutMs = 10_000) { container.database.userDao().count() > 0 }
-    }
-
     // --- Requirement (login-gate): Unauthenticated session shows the login screen, not the POS shell ---
 
     @Test
-    fun businessProfileExists_noSession_showsLogin_notOnboardingOrPosShell() = runBlocking {
-        container.businessProfileRepository.save("Acme", "123 Main St", "555-0100")
+    fun noSession_showsLogin_notPosShell() = runBlocking {
         container.authRepository.ensureDefaultAdminSeeded()
 
         composeTestRule.setContent {
@@ -106,7 +87,6 @@ class AuthGateTest {
         }
 
         composeTestRule.onNodeWithTag(userPickerItemTestTag(AuthRepository.DEFAULT_ADMIN_USERNAME)).assertExists()
-        composeTestRule.onNodeWithTag(ONBOARDING_NAME_FIELD_TEST_TAG).assertDoesNotExist()
         composeTestRule.onNodeWithTag(BOTTOM_NAV_TEST_TAG).assertDoesNotExist()
     }
 
@@ -114,7 +94,6 @@ class AuthGateTest {
 
     @Test
     fun authenticatedSession_showsPosShell() = runBlocking {
-        container.businessProfileRepository.save("Acme", "123 Main St", "555-0100")
         container.authRepository.ensureDefaultAdminSeeded()
         container.authRepository.login(AuthRepository.DEFAULT_ADMIN_USERNAME, AuthRepository.DEFAULT_ADMIN_PIN)
 
