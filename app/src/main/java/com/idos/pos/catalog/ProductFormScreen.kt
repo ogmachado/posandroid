@@ -30,10 +30,12 @@ import java.math.BigDecimal
 
 /**
  * Create/edit form for a single product (task 4.5), with category/unit-of-measure
- * pickers. When [product] is `null` this is create mode (no PIN gate — see
- * [ProductViewModel] class doc); when non-null this is edit mode, and saving a
- * changed price routes through [pinGate] via [ProductViewModel.submitUpdate]
- * (task 4.6).
+ * pickers. When [product] is `null` this is create mode — saving a non-zero
+ * `price`/`costPrice` routes through [pinGate] via [ProductViewModel.createProduct]
+ * (`android-pos-role-permissions` design.md Decisions G/H, supersedes the
+ * original "creation is never gated" scope); when non-null this is edit mode,
+ * and saving a changed `price`/`costPrice` routes through [pinGate] via
+ * [ProductViewModel.submitUpdate].
  *
  * **[initialBarcode] (task 6.3)**: when [product] is `null` (create mode),
  * [com.idos.pos.scan.BarcodeScanScreen]'s "unknown barcode" callback navigates
@@ -162,7 +164,13 @@ fun ProductFormScreen(
                     val barcodeOrNull = barcode.ifBlank { null }
 
                     if (product == null) {
+                        // Same gate the edit branch below uses — a non-zero
+                        // price/costPrice at creation time now requires the
+                        // same any-ADMIN callover as changing an existing
+                        // product's pricing (ProductViewModel.createProduct's
+                        // doc / design.md Decisions G/H).
                         viewModel.createProduct(
+                            pinGate = pinGate,
                             name = name,
                             code = code,
                             barcode = barcodeOrNull,
