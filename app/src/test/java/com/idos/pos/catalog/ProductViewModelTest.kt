@@ -171,11 +171,14 @@ class ProductViewModelTest {
         assertEquals("Widget Renamed", container.productDao.findById(existingProduct.id)?.name)
     }
 
+    // --- Pricing-callover extension to creation (design.md Decisions G/H) ---
+
     @Test
-    fun createProduct_isNeverPinGated() = runBlocking {
+    fun createProduct_withNonZeroPricing_requiresPinGate_andPersistsOnlyAfterCorrectPin() = runBlocking {
         val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
 
         viewModel.createProduct(
+            pinGate = pinGate,
             name = "New Widget",
             code = "SKU-200",
             barcode = null,
@@ -185,46 +188,155 @@ class ProductViewModelTest {
             categoryId = null,
         )
 
+        // The gate must fire BEFORE anything is persisted.
+        assertTrue(pinGate.isVisible)
+        assertNull(container.productDao.findByCode("SKU-200"))
+
+        pinGate.submit(correctPin)
         waitUntil { container.productDao.findByCode("SKU-200") != null }
+
         assertFalse(pinGate.isVisible)
         assertNull(viewModel.lastError.value)
+    }
+
+    @Test
+    fun createProduct_withZeroPricing_isNotPinGated_andPersistsDirectly() = runBlocking {
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
+
+        viewModel.createProduct(
+            pinGate = pinGate,
+            name = "Free Sample",
+            code = "SKU-ZERO",
+            barcode = null,
+            price = BigDecimal.ZERO,
+            costPrice = BigDecimal.ZERO,
+            unitMeasureId = existingProduct.unitMeasureId,
+            categoryId = null,
+        )
+
+        waitUntil { container.productDao.findByCode("SKU-ZERO") != null }
+        assertFalse(pinGate.isVisible)
+        assertNull(viewModel.lastError.value)
+    }
+
+    @Test
+    fun createProduct_withBothPriceAndCostPriceSet_promptsExactlyOnce() = runBlocking {
+        var promptCount = 0
+        val pinGate = PinGate(
+            verifyPin = {
+                promptCount += 1
+                it == correctPin
+            },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+
+        viewModel.createProduct(
+            pinGate = pinGate,
+            name = "New Widget",
+            code = "SKU-BOTH",
+            barcode = null,
+            price = BigDecimal("30.00"),
+            costPrice = BigDecimal("10.00"),
+            unitMeasureId = existingProduct.unitMeasureId,
+            categoryId = null,
+        )
+        pinGate.submit(correctPin)
+        waitUntil { container.productDao.findByCode("SKU-BOTH") != null }
+
+        assertEquals(1, promptCount)
+    }
+
+    @Test
+    fun submitUpdate_withBothPriceAndCostPriceChanged_promptsExactlyOnce() = runBlocking {
+        var promptCount = 0
+        val pinGate = PinGate(
+            verifyPin = {
+                promptCount += 1
+                it == correctPin
+            },
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+
+        viewModel.submitUpdate(
+            pinGate = pinGate,
+            original = existingProduct,
+            name = existingProduct.name,
+            code = existingProduct.code,
+            barcode = existingProduct.barcode,
+            price = BigDecimal("120.00"),
+            costPrice = BigDecimal("60.00"),
+            unitMeasureId = existingProduct.unitMeasureId,
+            categoryId = existingProduct.categoryId,
+        )
+        pinGate.submit(correctPin)
+        waitUntil { container.productDao.findById(existingProduct.id)?.price == BigDecimal("120.00") }
+
+        assertEquals(1, promptCount)
+    }
+
+    // --- costPrice-only change now also gates an edit (design.md Decision G) ---
+
+    @Test
+    fun submitUpdate_withOnlyCostPriceChanged_requiresPinGate() = runBlocking {
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
+
+        viewModel.submitUpdate(
+            pinGate = pinGate,
+            original = existingProduct,
+            name = existingProduct.name,
+            code = existingProduct.code,
+            barcode = existingProduct.barcode,
+            price = existingProduct.price,
+            costPrice = BigDecimal("70.00"),
+            unitMeasureId = existingProduct.unitMeasureId,
+            categoryId = existingProduct.categoryId,
+        )
+
+        assertTrue(pinGate.isVisible)
+        assertEquals(BigDecimal("50.00"), container.productDao.findById(existingProduct.id)?.costPrice)
     }
 
     // --- Double-click regression (coordinator review, final round) ---
 
     /**
-     * [ProductViewModel.isSaving]'s regression test. Without that guard, a
-     * fast double-click on Save fires two concurrent [createProduct] calls;
-     * [CatalogRepository.createProduct]'s uniqueness check is a non-atomic
-     * check-then-insert (only backstopped by the DB's unique index on
-     * `code`), so both calls could pass the pre-check and race to insert —
-     * the loser crashing with an uncaught `SQLiteConstraintException` rather
-     * than a graceful [DomainError]. The two calls below deliberately use
-     * DIFFERENT `name`/`price` so the test can tell which one (if either)
-     * actually ran: only the FIRST call's data must land — the second must
-     * be a silent no-op, not a crash and not a second attempt that failed
-     * with `DomainError.DuplicateCode`.
+     * [ProductViewModel.isSaving]'s original regression test, preserved on
+     * the UNGATED path ([pricingRequiresCallover]'s `ZERO`-pricing case).
+     * Without the `_isSaving` guard, a fast double-click on Save fires two
+     * concurrent [createProduct] calls; [CatalogRepository.createProduct]'s
+     * uniqueness check is a non-atomic check-then-insert (only backstopped by
+     * the DB's unique index on `code`), so both calls could pass the
+     * pre-check and race to insert — the loser crashing with an uncaught
+     * `SQLiteConstraintException` rather than a graceful [DomainError]. The
+     * two calls below deliberately use DIFFERENT `name`s so the test can tell
+     * which one (if either) actually ran: only the FIRST call's data must
+     * land — the second must be a silent no-op, not a crash.
      */
     @Test
-    fun createProduct_calledTwiceInQuickSuccession_secondCallIsANoOp() = runBlocking {
+    fun createProduct_withZeroPricing_calledTwiceInQuickSuccession_secondCallIsANoOp() = runBlocking {
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
+
         viewModel.createProduct(
+            pinGate = pinGate,
             name = "Double",
             code = "SKU-DBL-1",
             barcode = null,
-            price = BigDecimal("5.00"),
-            costPrice = BigDecimal("2.00"),
+            price = BigDecimal.ZERO,
+            costPrice = BigDecimal.ZERO,
             unitMeasureId = existingProduct.unitMeasureId,
             categoryId = null,
         )
         // Simulate a fast double-click: call again immediately, with no
         // dispatcher yield in between — before the first call's coroutine
-        // could possibly have completed its write.
+        // could possibly have completed its write. Neither call is
+        // PIN-gated (zero pricing), so both reach `performCreate` directly —
+        // exactly the shape the `_isSaving` guard protects.
         viewModel.createProduct(
+            pinGate = pinGate,
             name = "Double Duplicate Attempt",
             code = "SKU-DBL-1",
             barcode = null,
-            price = BigDecimal("9.00"),
-            costPrice = BigDecimal("3.00"),
+            price = BigDecimal.ZERO,
+            costPrice = BigDecimal.ZERO,
             unitMeasureId = existingProduct.unitMeasureId,
             categoryId = null,
         )
@@ -232,7 +344,48 @@ class ProductViewModelTest {
         waitUntil { container.productDao.findByCode("SKU-DBL-1") != null }
 
         assertEquals("Double", container.productDao.findByCode("SKU-DBL-1")?.name)
-        assertEquals(BigDecimal("5.00"), container.productDao.findByCode("SKU-DBL-1")?.price)
+        assertNull(viewModel.lastError.value)
+    }
+
+    /**
+     * Companion double-click scenario on the GATED path (non-zero pricing).
+     * [PinGate.require] always re-prompts and overwrites any not-yet-submitted
+     * pending action (see its own KDoc) — so a second rapid click before the
+     * operator answers the first dialog re-arms the SAME gate with the
+     * second call's closure, discarding the first. A single PIN submission
+     * then only ever runs one of the two pending creations, never both —
+     * closing the same class of concurrent-write risk one level earlier, at
+     * the gate itself, without depending on `_isSaving` for this path.
+     */
+    @Test
+    fun createProduct_withGatedPricing_calledTwiceBeforeAnyPinEntry_onlyTheLatestClickPersists() = runBlocking {
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
+
+        viewModel.createProduct(
+            pinGate = pinGate,
+            name = "Double",
+            code = "SKU-DBL-2",
+            barcode = null,
+            price = BigDecimal("5.00"),
+            costPrice = BigDecimal("2.00"),
+            unitMeasureId = existingProduct.unitMeasureId,
+            categoryId = null,
+        )
+        viewModel.createProduct(
+            pinGate = pinGate,
+            name = "Double Duplicate Attempt",
+            code = "SKU-DBL-2",
+            barcode = null,
+            price = BigDecimal("9.00"),
+            costPrice = BigDecimal("3.00"),
+            unitMeasureId = existingProduct.unitMeasureId,
+            categoryId = null,
+        )
+        pinGate.submit(correctPin)
+
+        waitUntil { container.productDao.findByCode("SKU-DBL-2") != null }
+
+        assertEquals("Double Duplicate Attempt", container.productDao.findByCode("SKU-DBL-2")?.name)
         assertNull(viewModel.lastError.value)
     }
 
@@ -285,7 +438,9 @@ class ProductViewModelTest {
         }
         val storeScopedViewModel = ViewModelProvider(store, factory)[ProductViewModel::class.java]
 
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
         storeScopedViewModel.createProduct(
+            pinGate = pinGate,
             name = "Gadget",
             code = "SKU-RACE-1",
             barcode = null,
@@ -294,6 +449,7 @@ class ProductViewModelTest {
             unitMeasureId = existingProduct.unitMeasureId,
             categoryId = null,
         )
+        pinGate.submit(correctPin)
 
         // Mirror LaunchedEffect(saveCompleted)'s real trigger condition —
         // onSaved()/popBackStack() only ever runs in reaction to this
