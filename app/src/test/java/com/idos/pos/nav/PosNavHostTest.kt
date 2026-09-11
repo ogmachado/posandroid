@@ -2,6 +2,10 @@ package com.idos.pos.nav
 
 import android.os.Looper
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -467,6 +471,54 @@ class PosNavHostTest {
 
         composeTestRule.onNodeWithTag(BARCODE_FIELD_TEST_TAG).assertExists()
         composeTestRule.onNodeWithTag(NAME_FIELD_TEST_TAG).assertExists()
+    }
+
+    // --- CASHIER barcode-creation block (design.md Decision F) ---
+
+    /**
+     * [unknownBarcodeAction]'s own `UnknownBarcodeActionTest` already covers
+     * the ADMIN-navigates / CASHIER-and-null-blocked role decision as a pure
+     * function. This class instead exercises [UnknownBarcodeBlockedNotice]
+     * directly with a synthetic [visible] value — the same
+     * [com.idos.pos.scan.CameraPermissionGate] precedent this codebase
+     * already established for a composable whose real trigger cannot be
+     * safely driven under Robolectric: putting [PosScreen] into its
+     * `isScanning` state composes [com.idos.pos.scan.BarcodeScanScreen],
+     * whose `CameraPermissionGate` resolves to `Granted` in this environment
+     * (the `CAMERA` permission is manifest-declared, and Robolectric grants
+     * manifest-declared permissions by default) and would in turn attempt to
+     * bind a real `ProcessCameraProvider` — exactly the camera-bound path
+     * `app/build.gradle.kts`'s own comment on `navigation-testing` and
+     * [com.idos.pos.scan.BarcodeScanScreen]'s class doc both document as
+     * untestable here. Together, [UnknownBarcodeActionTest] (the role
+     * decision) and this test (the notice's rendering/dismiss behavior) cover
+     * every part of the CASHIER-block feature that is safely driveable in
+     * this environment; [VentaRoute]'s few lines wiring the two together are
+     * the same kind of thin, direct `when` dispatch [visibleTabsFor] already
+     * has, verified by code-level equivalence rather than by an end-to-end
+     * Robolectric trigger.
+     */
+    @Test
+    fun unknownBarcodeBlockedNotice_whenVisible_rendersMessage_andDismissHidesIt() {
+        composeTestRule.setContent {
+            var visible by remember { mutableStateOf(true) }
+            UnknownBarcodeBlockedNotice(visible = visible, onDismiss = { visible = false })
+        }
+
+        composeTestRule.onNodeWithTag(UNKNOWN_BARCODE_BLOCKED_NOTICE_TEST_TAG).assertExists()
+
+        composeTestRule.onNodeWithTag(DISMISS_BLOCKED_NOTICE_BUTTON_TEST_TAG).performClick()
+
+        composeTestRule.onNodeWithTag(UNKNOWN_BARCODE_BLOCKED_NOTICE_TEST_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun unknownBarcodeBlockedNotice_whenNotVisible_rendersNothing() {
+        composeTestRule.setContent {
+            UnknownBarcodeBlockedNotice(visible = false, onDismiss = {})
+        }
+
+        composeTestRule.onNodeWithTag(UNKNOWN_BARCODE_BLOCKED_NOTICE_TEST_TAG).assertDoesNotExist()
     }
 
     // --- Back-stack hygiene across repeated tab switches ---
