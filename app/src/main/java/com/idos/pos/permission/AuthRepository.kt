@@ -72,11 +72,15 @@ class AuthRepository(private val userDao: UserDao, private val context: Context)
     }
 
     /**
-     * ADMIN-authored account creation. Rejects a duplicate `username`
-     * ([DomainError.DuplicateUsername]) and a blank PIN
-     * ([DomainError.BlankPin]) before ever touching the database.
+     * ADMIN-authored account creation (`user-management`, MODIFIED — "Only
+     * ADMIN Can Create Accounts Or Change PINs"). Rejects a non-ADMIN caller
+     * ([DomainError.NotPermitted], resolved fresh from [currentSession] —
+     * design.md Decision A) before validating a duplicate `username`
+     * ([DomainError.DuplicateUsername]) or a blank PIN ([DomainError.BlankPin]),
+     * and before ever touching the database.
      */
     suspend fun createUser(username: String, pin: String, role: UserRole): Result<Unit> {
+        if (!_currentSession.value?.role.canManageUsers()) return Result.failure(DomainException(DomainError.NotPermitted))
         if (pin.isBlank()) return Result.failure(DomainException(DomainError.BlankPin))
         if (userDao.findByUsername(username) != null) {
             return Result.failure(DomainException(DomainError.DuplicateUsername(username)))
@@ -88,11 +92,18 @@ class AuthRepository(private val userDao: UserDao, private val context: Context)
         return Result.success(Unit)
     }
 
-    /** Credential-change flow — overwrites the given user's PIN with a freshly salted hash. */
-    suspend fun changePin(userId: Long, newPin: String) {
+    /**
+     * Credential-change flow (`user-management`, MODIFIED — "Only ADMIN Can
+     * Create Accounts Or Change PINs") — overwrites the given user's PIN with
+     * a freshly salted hash. Rejects a non-ADMIN caller
+     * ([DomainError.NotPermitted]) before touching the database.
+     */
+    suspend fun changePin(userId: Long, newPin: String): Result<Unit> {
+        if (!_currentSession.value?.role.canManageUsers()) return Result.failure(DomainException(DomainError.NotPermitted))
         val salt = PinHasher.generateSalt()
         val hash = PinHasher.hash(newPin, salt)
         userDao.updatePin(userId, salt, hash)
+        return Result.success(Unit)
     }
 
     companion object {

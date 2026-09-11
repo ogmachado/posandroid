@@ -321,6 +321,7 @@ private fun seedAdminAndLogin(container: AppContainer) = runBlocking {
  */
 private fun seedCashierAndLogin(container: AppContainer) = runBlocking {
     container.authRepository.ensureDefaultAdminSeeded()
+    container.authRepository.login(AuthRepository.DEFAULT_ADMIN_USERNAME, AuthRepository.DEFAULT_ADMIN_PIN)
     container.authRepository.createUser("cashier1", "1234", UserRole.CASHIER)
     container.authRepository.login("cashier1", "1234")
 }

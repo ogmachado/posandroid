@@ -71,4 +71,16 @@ sealed interface DomainError {
      * non-blank (`user-identity` design-level open question).
      */
     data object BlankPin : DomainError
+
+    /**
+     * **Added in `android-pos-role-permissions` Phase 2** (`permission` —
+     * `AuthRepository.createUser`/`changePin`, `BusinessProfileViewModel.save`):
+     * the caller's session role failed the relevant `RolePermissions.kt`
+     * capability predicate for the action attempted (`role-capability-model`
+     * "Role-Gated Actions Are Enforced At The Action Layer, Not Only By UI
+     * Reachability"). Payload-free — a central `Capability` enum is an
+     * explicit non-goal, and a stringly-typed payload buys nothing on a path
+     * an operator should never see (design.md Decision E).
+     */
+    data object NotPermitted : DomainError
 }
