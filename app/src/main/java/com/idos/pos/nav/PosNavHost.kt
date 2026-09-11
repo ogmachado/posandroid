@@ -39,6 +39,8 @@ import com.idos.pos.inventory.InventoryMovementFormScreen
 import com.idos.pos.inventory.InventoryViewModel
 import com.idos.pos.inventory.ProductStockView
 import com.idos.pos.permission.UserRole
+import com.idos.pos.permission.canAccessInventory
+import com.idos.pos.permission.canAccessProductCatalog
 import com.idos.pos.permission.rememberPinGate
 import com.idos.pos.sales.PosScreen
 
@@ -333,14 +335,20 @@ private val posTabs = listOf(
 /**
  * Filters [posTabs] by [role] (design.md Decision H, `role-based-navigation`
  * spec): `CASHIER` sees exactly Venta/Caja; `ADMIN` sees all four, in the
- * existing declared order. A plain `when` transform, not a stored
- * per-role/tab permission — tab visibility derives fresh from the session's
- * role at composition time every time (`role-based-navigation` "Tab
- * Visibility Derives From Session Role At Composition Time").
+ * existing declared order. Per-tab visibility is decided by the shared
+ * `RolePermissions.kt` predicates (`android-pos-role-permissions` design.md
+ * Decision C — the same predicates the action layer enforces, so UI and
+ * enforcement can never disagree), not a stored per-role/tab permission —
+ * tab visibility derives fresh from the session's role at composition time
+ * every time (`role-based-navigation` "Tab Visibility Derives From Session
+ * Role At Composition Time"). `filter` preserves [posTabs]' declared order.
  */
-internal fun visibleTabsFor(role: UserRole): List<PosTab> = when (role) {
-    UserRole.CASHIER -> posTabs.filter { it.route == ROUTE_VENTA || it.route == ROUTE_CAJA }
-    UserRole.ADMIN -> posTabs
+internal fun visibleTabsFor(role: UserRole): List<PosTab> = posTabs.filter { tab ->
+    when (tab.route) {
+        ROUTE_PRODUCTOS -> role.canAccessProductCatalog()
+        ROUTE_INVENTARIO -> role.canAccessInventory()
+        else -> true // Venta/Caja: every authenticated role
+    }
 }
 
 @Composable

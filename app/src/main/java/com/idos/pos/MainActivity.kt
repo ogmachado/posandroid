@@ -36,8 +36,10 @@ import com.idos.pos.permission.AuthGate
 import com.idos.pos.permission.AuthGateState
 import com.idos.pos.permission.AuthGateViewModel
 import com.idos.pos.permission.BusinessProfileScreen
+import com.idos.pos.permission.RoleGate
 import com.idos.pos.permission.UserManagementScreen
-import com.idos.pos.permission.UserRole
+import com.idos.pos.permission.canAccessBusinessProfile
+import com.idos.pos.permission.canManageUsers
 import kotlinx.coroutines.launch
 
 /**
@@ -162,8 +164,11 @@ fun EnforcementGate(
  *
  * **ADMIN-only user-management header action (task 4.2; Decision J)**: a slim
  * header row above the content slot, rendered ONLY while
- * [AuthGateState.Authenticated.role] is [UserRole.ADMIN] — never for a
- * `CASHIER` session, and never during Login/Loading. Toggling it flips
+ * [AuthGateState.Authenticated.role] satisfies
+ * [com.idos.pos.permission.canManageUsers] (`android-pos-role-permissions`
+ * design.md Decisions C/D — evaluated via [RoleGate], never re-derived here)
+ * — never for a `CASHIER` session, and never during Login/Loading. Toggling
+ * it flips
  * [showUserManagement] (clearing [showBusinessProfile]), boolean-swapping the
  * content slot to [UserManagementScreen] instead of [AuthGate]. The
  * credential-change flow ("credential must be changeable") lives inside that
@@ -192,7 +197,7 @@ fun AppRoot(isInGracePeriod: Boolean = false) {
             if (isInGracePeriod) {
                 GracePeriodBanner()
             }
-            if (currentRole == UserRole.ADMIN) {
+            RoleGate(role = currentRole, requires = { canManageUsers() }) {
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Button(
                         onClick = {
@@ -219,9 +224,9 @@ fun AppRoot(isInGracePeriod: Boolean = false) {
                 contentAlignment = Alignment.Center,
             ) {
                 when {
-                    showUserManagement && currentRole == UserRole.ADMIN ->
+                    showUserManagement && currentRole.canManageUsers() ->
                         UserManagementScreen(onClose = { showUserManagement = false })
-                    showBusinessProfile && currentRole == UserRole.ADMIN ->
+                    showBusinessProfile && currentRole.canAccessBusinessProfile() ->
                         BusinessProfileScreen(onClose = { showBusinessProfile = false })
                     else -> AuthGate(viewModel = authGateViewModel)
                 }

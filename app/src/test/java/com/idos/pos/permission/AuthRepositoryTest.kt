@@ -159,34 +159,109 @@ class AuthRepositoryTest {
 
     @Test
     fun createUser_withDuplicateUsername_isRejected() = runBlocking {
+        loginAsAdmin()
         repository.createUser("cashier1", "1234", UserRole.CASHIER)
 
         val result = repository.createUser("cashier1", "5678", UserRole.CASHIER)
 
         assertTrue(result.isFailure)
         assertEquals(DomainError.DuplicateUsername("cashier1"), result.domainErrorOrNull())
-        assertEquals(1, dao.count())
+        assertEquals(2, dao.count()) // admin (seeded) + cashier1
     }
 
     // --- Scenario: createUser rejects a blank PIN ---
 
     @Test
     fun createUser_withBlankPin_isRejected() = runBlocking {
+        loginAsAdmin()
+
         val result = repository.createUser("cashier1", "", UserRole.CASHIER)
 
         assertTrue(result.isFailure)
         assertEquals(DomainError.BlankPin, result.domainErrorOrNull())
-        assertEquals(0, dao.count())
+        assertNull(dao.findByUsername("cashier1"))
     }
 
     @Test
     fun createUser_withValidInput_succeeds_andIsHashedAtRest() = runBlocking {
+        loginAsAdmin()
+
         val result = repository.createUser("cashier1", "1234", UserRole.CASHIER)
 
         assertTrue(result.isSuccess)
         val created = dao.findByUsername("cashier1")
         assertEquals(UserRole.CASHIER.name, created?.role)
         assertTrue(PinHasher.verify("1234", created!!.pinSalt, created.pinHash))
+    }
+
+    // --- Requirement (user-management, MODIFIED): Only ADMIN Can Create Accounts Or Change PINs ---
+
+    @Test
+    fun createUser_withNoSession_isRejected() = runBlocking {
+        val result = repository.createUser("cashier2", "1234", UserRole.CASHIER)
+
+        assertTrue(result.isFailure)
+        assertEquals(DomainError.NotPermitted, result.domainErrorOrNull())
+        assertNull(dao.findByUsername("cashier2"))
+    }
+
+    @Test
+    fun createUser_withCashierSession_isRejected() = runBlocking {
+        loginAsAdmin()
+        repository.createUser("cashier1", "1234", UserRole.CASHIER)
+        repository.login("cashier1", "1234")
+
+        val result = repository.createUser("cashier2", "5678", UserRole.CASHIER)
+
+        assertTrue(result.isFailure)
+        assertEquals(DomainError.NotPermitted, result.domainErrorOrNull())
+        assertNull(dao.findByUsername("cashier2"))
+    }
+
+    @Test
+    fun changePin_withNoSession_isRejected() = runBlocking {
+        val salt = PinHasher.generateSalt()
+        dao.insert(UserEntity(username = "cashier1", role = UserRole.CASHIER.name, pinSalt = salt, pinHash = PinHasher.hash("1234", salt)))
+        val target = dao.findByUsername("cashier1")!!
+
+        val result = repository.changePin(target.id, "5678")
+
+        assertTrue(result.isFailure)
+        assertEquals(DomainError.NotPermitted, result.domainErrorOrNull())
+        val unchanged = dao.findByUsername("cashier1")!!
+        assertTrue(PinHasher.verify("1234", unchanged.pinSalt, unchanged.pinHash))
+    }
+
+    @Test
+    fun changePin_withCashierSession_isRejected() = runBlocking {
+        val salt = PinHasher.generateSalt()
+        dao.insert(UserEntity(username = "cashier1", role = UserRole.CASHIER.name, pinSalt = salt, pinHash = PinHasher.hash("1234", salt)))
+        repository.login("cashier1", "1234")
+        val target = dao.findByUsername("cashier1")!!
+
+        val result = repository.changePin(target.id, "5678")
+
+        assertTrue(result.isFailure)
+        assertEquals(DomainError.NotPermitted, result.domainErrorOrNull())
+        val unchanged = dao.findByUsername("cashier1")!!
+        assertTrue(PinHasher.verify("1234", unchanged.pinSalt, unchanged.pinHash))
+    }
+
+    @Test
+    fun changePin_withAdminSession_succeeds() = runBlocking {
+        loginAsAdmin()
+        val admin = dao.findByUsername(AuthRepository.DEFAULT_ADMIN_USERNAME)!!
+
+        val result = repository.changePin(admin.id, "newpin1")
+
+        assertTrue(result.isSuccess)
+        val updated = dao.findByUsername(AuthRepository.DEFAULT_ADMIN_USERNAME)!!
+        assertTrue(PinHasher.verify("newpin1", updated.pinSalt, updated.pinHash))
+    }
+
+    private suspend fun loginAsAdmin() {
+        repository.ensureDefaultAdminSeeded()
+        repository.login(AuthRepository.DEFAULT_ADMIN_USERNAME, AuthRepository.DEFAULT_ADMIN_PIN)
     }
 
     // --- Scenario: currentSession is null before login, set after ---

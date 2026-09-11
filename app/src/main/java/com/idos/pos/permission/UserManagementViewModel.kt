@@ -76,13 +76,19 @@ class UserManagementViewModel(
      * Credential-change flow for the currently authenticated session
      * (`first-run-onboarding` "The Seeded Credential Must Be Changeable") — a
      * no-op if no session is active (should not happen: this screen is only
-     * reachable from an authenticated ADMIN header action).
+     * reachable from an authenticated ADMIN header action). Surfaces
+     * [AuthRepository.changePin]'s [DomainError] via [lastError], mirroring
+     * [createUser]'s error-surfacing pattern.
      */
     fun changeOwnPin(newPin: String) {
         val session = authRepository.currentSession.value ?: return
         viewModelScope.launch {
-            authRepository.changePin(session.userId, newPin)
-            _pinChanged.value += 1
+            val result = authRepository.changePin(session.userId, newPin)
+            val error = result.domainErrorOrNull()
+            _lastError.value = error
+            if (error == null) {
+                _pinChanged.value += 1
+            }
         }
     }
 }

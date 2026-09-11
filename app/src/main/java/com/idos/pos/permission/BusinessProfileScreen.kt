@@ -19,6 +19,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.idos.pos.core.di.LocalAppContainer
 import com.idos.pos.core.di.posViewModel
+import com.idos.pos.core.domain.DomainError
+import com.idos.pos.core.domain.domainErrorOrNull
 import kotlinx.coroutines.launch
 
 /**
@@ -55,6 +57,7 @@ fun BusinessProfileScreen(
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+    var saveError by remember { mutableStateOf<DomainError?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.load()?.let { profile ->
@@ -91,11 +94,20 @@ fun BusinessProfileScreen(
             modifier = Modifier.fillMaxWidth().testTag(BUSINESS_PROFILE_PHONE_FIELD_TEST_TAG),
         )
 
+        if (saveError != null) {
+            Text(
+                text = "Could not save: $saveError",
+                modifier = Modifier.testTag(BUSINESS_PROFILE_ERROR_TEST_TAG),
+            )
+        }
+
         Button(
             onClick = {
                 scope.launch {
-                    viewModel.save(name, address, phone)
-                    onClose()
+                    val result = viewModel.save(name, address, phone)
+                    val error = result.domainErrorOrNull()
+                    saveError = error
+                    if (error == null) onClose()
                 }
             },
             modifier = Modifier.testTag(BUSINESS_PROFILE_CONFIRM_BUTTON_TEST_TAG),
@@ -111,3 +123,4 @@ const val BUSINESS_PROFILE_NAME_FIELD_TEST_TAG = "business-profile-name-field"
 const val BUSINESS_PROFILE_ADDRESS_FIELD_TEST_TAG = "business-profile-address-field"
 const val BUSINESS_PROFILE_PHONE_FIELD_TEST_TAG = "business-profile-phone-field"
 const val BUSINESS_PROFILE_CONFIRM_BUTTON_TEST_TAG = "business-profile-confirm-button"
+const val BUSINESS_PROFILE_ERROR_TEST_TAG = "business-profile-error"
