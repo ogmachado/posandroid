@@ -28,12 +28,31 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * UI test written alongside (task 4.6; `Screen.kt`/`ViewModel.kt` are excluded
- * from strict TDD per openspec/config.yaml `strict_tdd_scope`). Confirms
- * [ProductFormScreen]'s Save button wires into
- * [ProductViewModel.submitUpdate] correctly — a price change opens the PIN
- * gate synchronously and does NOT persist; a non-price change persists
- * directly without ever touching the gate.
+ * UI test written alongside (task 4.6, extended by `android-pos-role-permissions`
+ * Phase 3; `Screen.kt`/`ViewModel.kt` are excluded from strict TDD per
+ * openspec/config.yaml `strict_tdd_scope`). Confirms [ProductFormScreen]'s
+ * Save button wires into [ProductViewModel.submitUpdate] correctly — a price
+ * OR costPrice change opens the PIN gate synchronously and does NOT persist
+ * (design.md Decision G widens this from price-only); a non-pricing change
+ * persists directly without ever touching the gate.
+ *
+ * **CREATE-mode gap (Phase 3, `pricingRequiresCallover`'s extension to
+ * [ProductViewModel.createProduct])**: this class does NOT add a Screen-level
+ * create-mode gating test. Driving a real create-mode save first requires
+ * selecting a unit of measure from [PickerDropdown] (a `DropdownMenu`, backed
+ * by a `Popup`) — `nav/PosNavHostTest.kt`'s own doc already documents,
+ * empirically, that a `DropdownMenu` opened via a mid-test click does not
+ * reliably become queryable in this Robolectric environment (the same class
+ * of Popup-based-component limitation as [PinGateDialog]/`AlertDialog`,
+ * just for a different component) — a pre-existing gap, not one this Phase
+ * introduces. [ProductViewModelTest] covers the exact same contract
+ * (`createProduct` opens the gate on non-zero pricing, persists only after a
+ * correct PIN, a zero-priced creation is ungated, both-changed prompts once)
+ * directly against the layer that actually enforces it, bypassing only the
+ * untestable dropdown UI — the same precedent
+ * `nav/PosNavHostTest.priceEditOnEditRoute_pinGateOpens_...`'s own doc and
+ * [ProductViewModel.createProduct_survivesViewModelStoreClear_triggeredOnlyAfterSaveCompletedFires]
+ * already established for the CREATE path's other Phase-8 race question.
  *
  * **Scope note**: this class deliberately does NOT drive the PIN dialog's
  * confirm/cancel flow (typing a PIN, clicking confirm) inside a rendered
@@ -125,6 +144,32 @@ class ProductFormScreenTest {
         assertTrue(pinGate.isVisible)
         runBlocking {
             assertEquals(BigDecimal("100.00"), container.productDao.findById(existingProduct.id)?.price)
+        }
+    }
+
+    /**
+     * Screen-level confirmation of design.md Decision G's widened scope
+     * (`android-pos-role-permissions`): a `costPrice`-ONLY change (leaving
+     * `price` untouched) now also opens the gate through the real Save
+     * button wiring, not just when exercised directly against
+     * [ProductViewModel.submitUpdate] ([ProductViewModelTest]'s
+     * `submitUpdate_withOnlyCostPriceChanged_requiresPinGate`).
+     */
+    @Test
+    fun changingOnlyCostPrice_andSaving_opensPinGate_withoutPersisting() {
+        val pinGate = PinGate(verifyPin = { it == correctPin }, scope = CoroutineScope(Dispatchers.Unconfined))
+
+        composeTestRule.setContent {
+            ProductFormScreen(product = existingProduct, pinGate = pinGate, onSaved = {}, viewModel = viewModel)
+        }
+
+        composeTestRule.onNodeWithTag(COST_PRICE_FIELD_TEST_TAG).performTextClearance()
+        composeTestRule.onNodeWithTag(COST_PRICE_FIELD_TEST_TAG).performTextInput("70.00")
+        composeTestRule.onNodeWithTag(SAVE_BUTTON_TEST_TAG).performClick()
+
+        assertTrue(pinGate.isVisible)
+        runBlocking {
+            assertEquals(BigDecimal("50.00"), container.productDao.findById(existingProduct.id)?.costPrice)
         }
     }
 

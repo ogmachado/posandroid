@@ -3,7 +3,10 @@ package com.idos.pos.nav
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
@@ -16,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -41,6 +45,7 @@ import com.idos.pos.inventory.ProductStockView
 import com.idos.pos.permission.UserRole
 import com.idos.pos.permission.canAccessInventory
 import com.idos.pos.permission.canAccessProductCatalog
+import com.idos.pos.permission.canCreateProducts
 import com.idos.pos.permission.rememberPinGate
 import com.idos.pos.sales.PosScreen
 
@@ -151,9 +156,10 @@ internal fun PosNavHost(navController: NavHostController, role: UserRole) {
         Box(modifier = Modifier.weight(1f)) {
             NavHost(navController = navController, startDestination = ROUTE_VENTA) {
                 composable(ROUTE_VENTA) {
-                    VentaRoute(onUnknownBarcode = { barcode ->
-                        navController.navigate(productCreateRoute(barcode))
-                    })
+                    VentaRoute(
+                        role = role,
+                        onNavigateToCreate = { route -> navController.navigate(route) },
+                    )
                 }
 
                 composable(ROUTE_PRODUCTOS) {
@@ -224,20 +230,104 @@ internal fun PosNavHost(navController: NavHostController, role: UserRole) {
     }
 }
 
+/**
+ * **CASHIER barcode block (design.md Decision F, `role-capability-model`
+ * spec)**: [role] decides what an unknown-barcode hand-off from [PosScreen]
+ * does, via the pure [unknownBarcodeAction] — the same predicate-based
+ * approach every other role decision in this change uses (Decision C), kept
+ * here (rather than inside [PosScreen] itself) so [PosScreen]'s own API and
+ * `PosScreenTest`-free status stay untouched. `internal` (not `private`) so
+ * `role-capability-model`'s wiring is documented at the same visibility as
+ * [visibleTabsFor]. [unknownBarcodeAction] and [UnknownBarcodeBlockedNotice]
+ * carry this function's real test coverage — see their own docs for why this
+ * function's real end-to-end trigger (an unknown barcode arriving from
+ * [PosScreen]'s camera-bound scan flow) is not itself driven under
+ * Robolectric.
+ */
 @Composable
-private fun VentaRoute(onUnknownBarcode: (barcode: String) -> Unit) {
+internal fun VentaRoute(role: UserRole, onNavigateToCreate: (route: String) -> Unit) {
     val viewModel: CashSessionViewModel = posViewModel(LocalAppContainer.current)
     val session by viewModel.currentSession.collectAsState()
 
     if (session == null) {
         CashSessionOpenScreen(onOpened = {}, viewModel = viewModel)
     } else {
-        PosScreen(
-            onSaleConfirmed = {},
-            onUnknownBarcode = onUnknownBarcode,
-        )
+        var creationBlockedNoticeVisible by remember { mutableStateOf(false) }
+
+        Column {
+            UnknownBarcodeBlockedNotice(
+                visible = creationBlockedNoticeVisible,
+                onDismiss = { creationBlockedNoticeVisible = false },
+            )
+
+            // PosScreen already sets its own isScanning = false BEFORE
+            // invoking onUnknownBarcode (see PosScreen.kt), so the operator's
+            // cart is intact and scan-again/manual entry keep working
+            // regardless of which branch below runs.
+            PosScreen(
+                onSaleConfirmed = {},
+                onUnknownBarcode = { barcode ->
+                    when (val action = unknownBarcodeAction(role, barcode)) {
+                        is UnknownBarcodeAction.NavigateToCreate -> onNavigateToCreate(action.route)
+                        UnknownBarcodeAction.ShowCreationBlocked -> creationBlockedNoticeVisible = true
+                    }
+                },
+            )
+        }
     }
 }
+
+/**
+ * Compact, dismissible inline notice shown above [PosScreen] when
+ * [unknownBarcodeAction] resolves to [UnknownBarcodeAction.ShowCreationBlocked]
+ * (design.md Decision F). Split out from [VentaRoute] (matching
+ * [com.idos.pos.scan.CameraPermissionGate]'s own precedent for exactly this
+ * reason) so it can be exercised directly by
+ * [com.idos.pos.nav.PosNavHostTest] with a synthetic [visible] value — the
+ * real trigger (an unknown barcode arriving from [PosScreen]'s scan flow)
+ * requires putting [PosScreen] into its camera-bound scanning state, which
+ * this codebase's `build.gradle.kts` and
+ * [com.idos.pos.scan.BarcodeScanScreen]'s own class doc both document as not
+ * safely driveable under Robolectric.
+ */
+@Composable
+internal fun UnknownBarcodeBlockedNotice(visible: Boolean, onDismiss: () -> Unit) {
+    if (!visible) return
+    Row(modifier = Modifier.padding(16.dp).testTag(UNKNOWN_BARCODE_BLOCKED_NOTICE_TEST_TAG)) {
+        Text("Product not registered. Ask an ADMIN to add it before selling it.")
+        Button(onClick = onDismiss, modifier = Modifier.testTag(DISMISS_BLOCKED_NOTICE_BUTTON_TEST_TAG)) {
+            Text("Dismiss")
+        }
+    }
+}
+
+/** Decision produced by [unknownBarcodeAction] — see that function's doc. */
+internal sealed interface UnknownBarcodeAction {
+    data class NavigateToCreate(val route: String) : UnknownBarcodeAction
+    data object ShowCreationBlocked : UnknownBarcodeAction
+}
+
+/**
+ * Pure decision for [VentaRoute]'s unknown-barcode hand-off (design.md
+ * Decision F): `ADMIN` may create the missing product (navigates to
+ * [productCreateRoute] pre-filled with the scanned code, same as before this
+ * change); every other role (`CASHIER`, or `null` — no session) is blocked,
+ * per [UserRole.canCreateProducts].
+ *
+ * **Why this is a plain function, not inline logic inside [PosScreen]'s real
+ * scan trigger**: [PosScreen]'s scan path is camera-bound
+ * ([com.idos.pos.scan.BarcodeScanScreen]'s `CameraPreviewWithAnalysis`,
+ * documented there as untestable under Robolectric). Extracting the decision
+ * itself into a pure, plain-JVM-testable function (the same `visibleTabsFor`
+ * precedent this codebase already established) means the actual role logic
+ * has real test coverage even though the end-to-end camera trigger does not.
+ */
+internal fun unknownBarcodeAction(role: UserRole?, barcode: String): UnknownBarcodeAction =
+    if (role.canCreateProducts()) {
+        UnknownBarcodeAction.NavigateToCreate(productCreateRoute(barcode))
+    } else {
+        UnknownBarcodeAction.ShowCreationBlocked
+    }
 
 @Composable
 private fun CajaRoute(onCloseRequested: () -> Unit) {
@@ -396,5 +486,7 @@ internal fun productEditRoute(productId: Long): String = "productos/edit/$produc
 internal fun inventoryMovementRoute(productId: Long): String = "inventario/movement/$productId"
 
 const val BOTTOM_NAV_TEST_TAG = "pos-bottom-nav"
+const val UNKNOWN_BARCODE_BLOCKED_NOTICE_TEST_TAG = "unknown-barcode-blocked-notice"
+const val DISMISS_BLOCKED_NOTICE_BUTTON_TEST_TAG = "unknown-barcode-blocked-notice-dismiss"
 
 fun bottomNavItemTestTag(route: String) = "pos-bottom-nav-item-$route"
